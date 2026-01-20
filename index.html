@@ -3,169 +3,156 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Skaner Diagnostyczny</title>
+    <title>Skaner Faktur - Wersja Długopis</title>
     <style>
-        body { font-family: sans-serif; background: #1a1a1a; color: white; margin: 0; padding: 10px; }
-        .box { max-width: 500px; margin: 0 auto; background: #2d2d2d; padding: 15px; border-radius: 12px; }
-        video { width: 100%; border-radius: 8px; background: #000; }
-        .controls { margin: 15px 0; }
-        .btn { width: 100%; padding: 15px; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; margin-bottom: 10px; }
-        .btn-capture { background: #ff9800; color: white; }
-        .btn-start { background: #2196F3; color: white; }
-        
-        /* Suwak do regulacji obrazu */
-        .slider-box { background: #444; padding: 10px; border-radius: 8px; margin: 10px 0; }
-        input[type=range] { width: 100%; }
-
-        #debug-zone { background: #000; padding: 10px; border-radius: 8px; margin-top: 10px; border: 1px solid #555; }
-        canvas { width: 100%; image-rendering: pixelated; border: 1px solid yellow; }
-        #raw-output { font-family: monospace; color: #00ff00; font-size: 12px; word-break: break-all; margin-top: 10px; text-align: left; }
-        
-        .result-success { background: #2e7d32; padding: 10px; border-radius: 8px; margin: 10px 0; font-weight: bold; }
-        table { width: 100%; background: white; color: black; margin-top: 15px; border-collapse: collapse; }
-        td { padding: 8px; border-bottom: 1px solid #ccc; }
+        body { font-family: sans-serif; background: #121212; color: #e0e0e0; margin: 0; padding: 10px; text-align: center; }
+        .container { max-width: 500px; margin: 0 auto; }
+        video { width: 100%; border-radius: 12px; border: 2px solid #333; }
+        .btn { width: 100%; padding: 16px; border: none; border-radius: 10px; font-size: 18px; font-weight: bold; cursor: pointer; margin: 10px 0; }
+        .btn-main { background: #007bff; color: white; }
+        .btn-snap { background: #28a745; color: white; display: none; }
+        #debug-zone { background: #000; padding: 10px; border-radius: 10px; border: 1px solid #444; margin-top: 10px; }
+        canvas { width: 100%; border: 1px solid #666; image-rendering: pixelated; }
+        #status { font-weight: bold; margin: 10px 0; color: #ffc107; }
+        #raw-text { font-family: monospace; font-size: 12px; color: #00ff00; background: #222; padding: 10px; border-radius: 5px; min-height: 20px; word-break: break-all; }
+        table { width: 100%; background: white; color: black; margin-top: 20px; border-collapse: collapse; border-radius: 8px; overflow: hidden; }
+        td { padding: 12px; border-bottom: 1px solid #eee; text-align: left; }
     </style>
     <script src="tesseract.min.js"></script>
 </head>
 <body>
 
-<div class="box">
+<div class="container">
     <video id="video" autoplay playsinline></video>
     
-    <div class="controls">
-        <button id="startBtn" class="btn btn-start">1. WŁĄCZ KAMERĘ</button>
-        <button id="captureBtn" class="btn btn-capture" style="display:none;">2. ZRÓB ZDJĘCIE</button>
-    </div>
+    <button id="startBtn" class="btn btn-main">1. URUCHOM KAMERĘ</button>
+    <button id="captureBtn" class="btn btn-snap">2. SKANUJ NUMER</button>
 
-    <div class="slider-box">
-        <label>Jasność/Próg: <span id="threshVal">120</span></label>
-        <input type="range" id="threshold" min="50" max="200" value="120">
-        <small style="display:block; color:#bbb">Przesuń, jeśli obraz niżej jest za ciemny/jasny</small>
-    </div>
-
-    <div id="status">Status: Gotowy</div>
+    <div id="status">Gotowy</div>
 
     <div id="debug-zone">
-        <small>PODGLĄD DLA ROBOTA:</small>
+        <p style="font-size:10px; margin:0 0 5px 0;">PODGLĄD (Musi być widać długopis!):</p>
         <canvas id="outCanvas"></canvas>
-        <div id="raw-output">Tekst z OCR: (tu pojawią się błędy)</div>
+        <div id="raw-text">Tu pojawi się odczyt...</div>
     </div>
 
-    <div id="results"></div>
-
     <table id="list"><tbody></tbody></table>
-    <button id="downloadBtn" class="btn" style="background:#4CAF50; color:white; display:none; margin-top:10px;">POBIERZ CSV</button>
+    <button id="downloadBtn" class="btn" style="background:#6c757d; color:white; display:none;">POBIERZ CSV</button>
 </div>
 
 <script>
     const video = document.getElementById('video');
     const outCanvas = document.getElementById('outCanvas');
     const status = document.getElementById('status');
-    const rawOut = document.getElementById('raw-output');
-    const threshSlider = document.getElementById('threshold');
-    const threshVal = document.getElementById('threshVal');
+    const rawTextEl = document.getElementById('raw-text');
+    const outCtx = outCanvas.getContext('2d', { willReadFrequently: true });
 
-    let isCameraOn = false;
-
-    // AKTUALIZACJA PROGU NA ŻYWO
-    threshSlider.oninput = function() { threshVal.innerText = this.value; }
-
+    // 1. START KAMERY
     document.getElementById('startBtn').onclick = async () => {
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-            video: { facingMode: "environment", width: 1280, height: 720 } 
-        });
-        video.srcObject = stream;
-        document.getElementById('startBtn').style.display = 'none';
-        document.getElementById('captureBtn').style.display = 'block';
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } } 
+            });
+            video.srcObject = stream;
+            document.getElementById('startBtn').style.display = 'none';
+            document.getElementById('captureBtn').style.display = 'block';
+            status.innerText = "Ustaw numer w centrum i kliknij Skanuj";
+        } catch (e) { status.innerText = "Błąd: " + e.message; }
     };
 
-    document.getElementById('captureBtn').onclick = () => {
-        process();
-    };
-
-    async function process() {
-        status.innerText = "Skanuję...";
-        rawOut.innerText = "Czytam...";
-
-        // 1. Przygotowanie zdjęcia (wycinek środka)
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = video.videoWidth;
-        tempCanvas.height = video.videoHeight;
-        const ctx = tempCanvas.getContext('2d');
-        ctx.drawImage(video, 0, 0);
-
-        // Wycinamy pasek ze środka (20% wysokości ekranu)
-        const h = tempCanvas.height * 0.25;
-        const w = tempCanvas.width;
+    // 2. PRZETWARZANIE (Zoptymalizowane pod długopis)
+    document.getElementById('captureBtn').onclick = async () => {
+        status.innerText = "Przetwarzanie...";
+        
+        // Wycinamy środek
+        const w = video.videoWidth;
+        const h = video.videoHeight;
+        const cropH = h * 0.25; // Pasek 25% wysokości
+        
         outCanvas.width = w;
-        outCanvas.height = h;
-        const outCtx = outCanvas.getContext('2d');
-        outCtx.drawImage(tempCanvas, 0, tempCanvas.height * 0.37, w, h, 0, 0, w, h);
+        outCanvas.height = cropH;
+        
+        // Rysujemy wycinek
+        outCtx.drawImage(video, 0, h*0.37, w, cropH, 0, 0, w, cropH);
 
-        // 2. Obróbka - CZERŃ I BIEL (Threshold)
-        const imgData = outCtx.getImageData(0, 0, w, h);
-        const data = imgData.data;
-        const threshold = parseInt(threshSlider.value);
-
-        for (let i = 0; i < data.length; i += 4) {
-            const avg = (data[i] + data[i+1] + data[i+2]) / 3;
-            const val = avg >= threshold ? 255 : 0;
-            data[i] = data[i+1] = data[i+2] = val;
+        // FILTR: Zamiast czarno-białego, robimy inteligentny kontrast
+        const imgData = outCtx.getImageData(0, 0, w, cropH);
+        const d = imgData.data;
+        
+        for (let i = 0; i < d.length; i += 4) {
+            // Skala szarości
+            let v = 0.2126 * d[i] + 0.7152 * d[i+1] + 0.0722 * d[i+2];
+            
+            // MOCNY KONTRAST (Adaptive-like)
+            // Wyciągamy ciemne linie (długopis) i rozjaśniamy tło
+            if (v < 130) { v = v * 0.5; } // Przyciemnij to co już ciemne (długopis)
+            else { v = 255; } // Wybiel tło
+            
+            d[i] = d[i+1] = d[i+2] = v;
         }
         outCtx.putImageData(imgData, 0, 0);
 
-        // 3. OCR
+        runOCR();
+    };
+
+    // 3. OCR
+    async function runOCR() {
+        status.innerText = "Robot czyta...";
         try {
             const worker = await Tesseract.createWorker('eng', 1, {
-                workerPath: './worker.min.js', corePath: './tesseract-core.wasm.js', langPath: './', gzip: true
+                workerPath: './worker.min.js',
+                corePath: './tesseract-core.wasm.js',
+                langPath: './',
+                gzip: true
             });
 
-            await worker.setParameters({ tessedit_char_whitelist: '0123456789EKOUMW/|' });
-            const { data: { text } } = await worker.recognize(outCanvas);
-            
-            rawOut.innerText = "ODCZYTANO: " + text;
+            await worker.setParameters({
+                tessedit_char_whitelist: '0123456789EKOUMW/|lI',
+            });
 
-            // SZUKANIE NUMERU (Bardzo elastyczne)
-            // Szukamy samych cyfr, które stoją przed EKO
+            const { data: { text } } = await worker.recognize(outCanvas);
+            rawTextEl.innerText = "Odczytano: " + text;
+
+            // Sprzątanie tekstu pod wzorzec
             const clean = text.replace(/\s/g, '').toUpperCase();
-            const pattern = /(\d{4,})[\|\/1I]?EK[O0][\|\/1I]?UMW[\|\/1I]?2025/;
-            const match = clean.match(pattern);
+            const match = clean.match(/(\d{4,})[\/|lI1]EK[0O][\/|lI1]UMW[\/|lI1]2025/);
 
             if (match) {
-                const nr = match[1] + "/EKO/UMW/2025";
-                save(nr);
-                status.innerHTML = `<div class="result-success">ZNALEZIONO: ${nr}</div>`;
+                const finalNr = match[1] + "/EKO/UMW/2025";
+                save(finalNr);
+                status.innerHTML = `<span style="color:#28a745">ZNALEZIONO: ${finalNr}</span>`;
             } else {
-                status.innerText = "Nie dopasowano wzoru. Popraw suwak jasności.";
+                status.innerText = "Nie znaleziono wzoru. Spróbuj zmienić kąt.";
             }
-
             await worker.terminate();
-        } catch (e) {
-            status.innerText = "Błąd: " + e.message;
-        }
+        } catch (e) { status.innerText = "Błąd OCR: " + e.message; }
     }
 
     function save(nr) {
-        let list = JSON.parse(localStorage.getItem('faktury_diag') || '[]');
-        if(!list.includes(nr)) list.push(nr);
-        localStorage.setItem('faktury_diag', JSON.stringify(list));
+        let list = JSON.parse(localStorage.getItem('faktury_final') || '[]');
+        if(!list.includes(nr)) {
+            list.push(nr);
+            localStorage.setItem('faktury_final', JSON.stringify(list));
+        }
         render();
     }
 
     function render() {
-        const list = JSON.parse(localStorage.getItem('faktury_diag') || '[]');
+        const list = JSON.parse(localStorage.getItem('faktury_final') || '[]');
         const tbody = document.querySelector('#list tbody');
-        tbody.innerHTML = list.map(item => `<tr><td>${item}</td></tr>`).join('');
+        tbody.innerHTML = list.map((item, idx) => `<tr><td>${item}</td></tr>`).join('');
         if(list.length > 0) document.getElementById('downloadBtn').style.display = 'block';
-        
-        document.getElementById('downloadBtn').onclick = () => {
-            const csv = "Numer Faktury\n" + list.join("\n");
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
-            a.download = 'faktury.csv';
-            a.click();
-        };
     }
+
+    document.getElementById('downloadBtn').onclick = () => {
+        const list = JSON.parse(localStorage.getItem('faktury_final') || '[]');
+        const csv = "Numer Faktury\n" + list.join("\n");
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([csv], {type: 'text/csv'}));
+        a.download = 'faktury.csv';
+        a.click();
+    };
+
     render();
 </script>
 </body>
