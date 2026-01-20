@@ -3,703 +3,212 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#2196F3">
-    <title>Skaner Faktur</title>
+    <title>Skaner Faktur EKO</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-            overflow: hidden;
-        }
-
-        header {
-            background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
-            color: white;
-            padding: 24px;
-            text-align: center;
-        }
-
-        header h1 {
-            font-size: 24px;
-            font-weight: 600;
-            margin-bottom: 8px;
-        }
-
-        header p {
-            font-size: 14px;
-            opacity: 0.9;
-        }
-
-        main {
-            padding: 24px;
-        }
-
-        .camera-container {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: #000;
-            z-index: 1000;
-            flex-direction: column;
-        }
-
-        .camera-container.active {
-            display: flex;
-        }
-
-        #video {
-            flex: 1;
-            width: 100%;
-            object-fit: cover;
-        }
-
-        #canvas {
-            display: none;
-        }
-
-        .camera-controls {
-            background: rgba(0,0,0,0.8);
-            padding: 20px;
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
-        }
-
-        .camera-btn {
-            width: 70px;
-            height: 70px;
-            border-radius: 50%;
-            border: 4px solid white;
-            background: #2196F3;
-            cursor: pointer;
-            transition: all 0.3s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 32px;
-        }
-
-        .camera-btn:active {
-            transform: scale(0.9);
-        }
-
-        .camera-btn.capture {
-            width: 80px;
-            height: 80px;
-            background: white;
-        }
-
-        .camera-btn.close {
-            background: #f44336;
-            width: 60px;
-            height: 60px;
-            font-size: 24px;
-        }
-
-        .input-section {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-            margin-bottom: 24px;
-        }
-
-        .btn {
-            padding: 14px 20px;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.3s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-
-        .btn-primary {
-            background: #2196F3;
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background: #1976D2;
-            transform: translateY(-2px);
-        }
-
-        .btn-secondary {
-            background: #f5f5f5;
-            color: #333;
-        }
-
-        .btn-secondary:hover {
-            background: #e0e0e0;
-        }
-
-        .btn-success {
-            background: #4CAF50;
-            color: white;
-            grid-column: 1 / -1;
-        }
-
-        .btn-success:hover {
-            background: #45a049;
-        }
-
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        input[type="file"] {
-            display: none;
-        }
-
-        .status {
-            background: #f5f5f5;
-            padding: 16px;
-            border-radius: 8px;
-            margin-bottom: 24px;
-            text-align: center;
-            font-size: 14px;
-            min-height: 48px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .status.processing {
-            background: #FFF3E0;
-            color: #E65100;
-        }
-
-        .status.success {
-            background: #E8F5E9;
-            color: #2E7D32;
-        }
-
-        .status.error {
-            background: #FFEBEE;
-            color: #C62828;
-        }
-
-        .debug-text {
-            font-size: 11px;
-            font-family: monospace;
-            color: #666;
-            max-height: 100px;
-            overflow-y: auto;
-            background: #f9f9f9;
-            padding: 8px;
-            border-radius: 4px;
-            margin-top: 8px;
-            width: 100%;
-            text-align: left;
-            white-space: pre-wrap;
-            word-break: break-all;
-        }
-
-        .loader {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #2196F3;
-            border-radius: 50%;
-            width: 20px;
-            height: 20px;
-            animation: spin 1s linear infinite;
-            display: inline-block;
-            margin-right: 8px;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .table-container {
-            overflow-x: auto;
-            margin-bottom: 24px;
-            border-radius: 8px;
-            border: 1px solid #e0e0e0;
-            max-height: 400px;
-            overflow-y: auto;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        thead {
-            background: #f5f5f5;
-            position: sticky;
-            top: 0;
-        }
-
-        th {
-            padding: 12px;
-            text-align: left;
-            font-weight: 600;
-            color: #666;
-            font-size: 14px;
-        }
-
-        td {
-            padding: 12px;
-            border-top: 1px solid #e0e0e0;
-            font-size: 14px;
-        }
-
-        tr:hover {
-            background: #f9f9f9;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 40px 20px;
-            color: #999;
-        }
-
-        .counter {
-            background: #E3F2FD;
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 16px;
-            text-align: center;
-            font-size: 14px;
-            font-weight: 500;
-            color: #1976D2;
-        }
-
-        .btn-delete {
-            background: #f44336;
-            color: white;
-            padding: 8px 16px;
-            border: none;
-            border-radius: 6px;
-            font-size: 13px;
-            cursor: pointer;
-        }
-
-        .btn-delete:hover {
-            background: #d32f2f;
-        }
-
-        .preview {
-            max-width: 100%;
-            max-height: 300px;
-            margin: 16px 0;
-            border-radius: 8px;
-            display: none;
-        }
-
-        .preview.show {
-            display: block;
-        }
-
-        @media (max-width: 600px) {
-            .input-section {
-                grid-template-columns: 1fr;
-            }
-
-            body {
-                padding: 0;
-            }
-
-            .container {
-                border-radius: 0;
-                min-height: 100vh;
-            }
-        }
+        body { font-family: sans-serif; background: #e0e5ec; padding: 15px; text-align: center; }
+        .box { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 600px; margin: 0 auto; }
+        video { width: 100%; border-radius: 10px; display: none; margin-bottom: 10px; }
+        .btn { width: 100%; padding: 15px; margin: 5px 0; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; color: white; }
+        .btn-start { background: #007bff; }
+        .btn-snap { background: #28a745; display: none; }
+        .btn-csv { background: #17a2b8; }
+        #status { margin: 15px 0; padding: 10px; background: #fff3cd; border: 1px solid #ffeeba; border-radius: 5px; color: #856404; min-height: 40px; }
+        table { width: 100%; margin-top: 15px; border-collapse: collapse; }
+        td { padding: 10px; border-bottom: 1px solid #ddd; text-align: left; background: white; }
+        .del-btn { color: red; font-weight: bold; border: none; background: none; float: right; padding: 0 10px; }
+        /* Ukrywamy canvasy techniczne */
+        #canvas, #debugCanvas { display: none; }
     </style>
+    <script src="tesseract.min.js"></script>
 </head>
 <body>
-    <div class="camera-container" id="cameraContainer">
-        <video id="video" autoplay playsinline></video>
-        <canvas id="canvas"></canvas>
-        <div class="camera-controls">
-            <button class="camera-btn close" id="closeCameraBtn">✕</button>
-            <button class="camera-btn capture" id="captureBtn">📷</button>
-            <button class="camera-btn" id="switchCameraBtn">🔄</button>
-        </div>
-    </div>
 
-    <div class="container">
-        <header>
-            <h1>📄 Skaner Faktur</h1>
-            <p>Skanuj faktury offline - Format: LICZBA/EKO/UMW/2025</p>
-        </header>
+<div class="box">
+    <h2>Skaner Faktur</h2>
+    <p style="font-size: 12px; color: #666;">Szukam: 123/EKO/UMW/2025</p>
 
-        <main>
-            <div class="input-section">
-                <button class="btn btn-primary" id="openCameraBtn">
-                    📷 Uruchom kamerę
-                </button>
-                <button class="btn btn-secondary" id="uploadBtn">
-                    📁 Wybierz plik
-                </button>
-            </div>
+    <video id="video" autoplay playsinline></video>
+    <canvas id="canvas"></canvas> 
+    <canvas id="debugCanvas"></canvas>
 
-            <input type="file" id="fileInput" accept="image/*,application/pdf">
+    <button id="startBtn" class="btn btn-start">📷 Uruchom kamerę</button>
+    <button id="captureBtn" class="btn btn-snap">📸 Zrób zdjęcie</button>
 
-            <img class="preview" id="preview" alt="Podgląd">
+    <div id="status">Gotowy do pracy offline.</div>
 
-            <div class="status" id="status">
-                Gotowy do skanowania
-            </div>
+    <table id="list">
+        <thead></thead>
+        <tbody id="invoiceBody"></tbody>
+    </table>
 
-            <div class="counter" id="counter">
-                Zeskanowane faktury: 0
-            </div>
+    <br>
+    <button id="downloadBtn" class="btn btn-csv" disabled>💾 Pobierz CSV</button>
+</div>
 
-            <div class="table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Numer faktury</th>
-                            <th style="width: 100px;">Akcje</th>
-                        </tr>
-                    </thead>
-                    <tbody id="invoiceTable">
-                        <tr>
-                            <td colspan="2" class="empty-state">
-                                Brak zeskanowanych faktur
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+<script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const debugCanvas = document.getElementById('debugCanvas');
+    const statusEl = document.getElementById('status');
+    let stream = null;
 
-            <div class="actions">
-                <button class="btn btn-success" id="downloadBtn" disabled>
-                    💾 Pobierz CSV
-                </button>
-            </div>
-        </main>
-    </div>
-
-    <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
-    
-    <script>
-        // === KAMERA ===
-        let stream = null;
-        let currentCamera = 'environment';
-
-        async function openCamera() {
-            try {
-                const constraints = {
-                    video: {
-                        facingMode: currentCamera,
-                        width: { ideal: 1920 },
-                        height: { ideal: 1080 }
-                    }
-                };
-
-                stream = await navigator.mediaDevices.getUserMedia(constraints);
-                const video = document.getElementById('video');
-                video.srcObject = stream;
-                
-                document.getElementById('cameraContainer').classList.add('active');
-                updateStatus('success', '✓ Kamera aktywna - wyceluj w numer faktury');
-            } catch (error) {
-                console.error('Błąd kamery:', error);
-                updateStatus('error', '✗ Brak dostępu do kamery: ' + error.message);
-            }
-        }
-
-        function closeCamera() {
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-                stream = null;
-            }
-            document.getElementById('cameraContainer').classList.remove('active');
-            updateStatus('success', '✓ Kamera zamknięta');
-        }
-
-        async function switchCamera() {
-            currentCamera = currentCamera === 'environment' ? 'user' : 'environment';
-            closeCamera();
-            await openCamera();
-        }
-
-        function capturePhoto() {
-            const video = document.getElementById('video');
-            const canvas = document.getElementById('canvas');
-            
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            
-            const context = canvas.getContext('2d');
-            context.drawImage(video, 0, 0, canvas.width, canvas.height);
-            
-            canvas.toBlob((blob) => {
-                closeCamera();
-                scanImage(blob);
-            }, 'image/jpeg', 0.95);
-        }
-
-        // === MAGAZYN DANYCH ===
-        const STORAGE_KEY = 'invoices';
-
-        function getInvoices() {
-            const data = localStorage.getItem(STORAGE_KEY);
-            return data ? JSON.parse(data) : [];
-        }
-
-        function saveInvoices(invoices) {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(invoices));
-        }
-
-        function addInvoice(number, rawText) {
-            const invoices = getInvoices();
-            invoices.push({
-                id: Date.now(),
-                number: number,
-                rawText: rawText,
-                timestamp: new Date().toISOString()
+    // 1. URUCHOMIENIE KAMERY
+    document.getElementById('startBtn').addEventListener('click', async () => {
+        try {
+            statusEl.innerText = "Uruchamiam kamerę...";
+            // Próba wymuszenia tylnej kamery
+            stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: { exact: "environment" } } 
+            }).catch(() => {
+                // Jeśli fail, bierz jakąkolwiek
+                return navigator.mediaDevices.getUserMedia({ video: true });
             });
-            saveInvoices(invoices);
+            
+            video.srcObject = stream;
+            video.style.display = 'block';
+            document.getElementById('startBtn').style.display = 'none';
+            document.getElementById('captureBtn').style.display = 'inline-block';
+            statusEl.innerText = "Wyceluj w numer i zrób zdjęcie";
+        } catch (err) {
+            statusEl.innerText = "Błąd kamery: " + err.message;
         }
+    });
 
-        function deleteInvoice(id) {
-            const invoices = getInvoices().filter(inv => inv.id !== id);
-            saveInvoices(invoices);
-        }
-
-        // === OCR I EKSTRAKCJA - ULEPSZONA WERSJA ===
+    // 2. ROBIENIE ZDJĘCIA
+    document.getElementById('captureBtn').addEventListener('click', () => {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0);
         
-        function normalizeText(text) {
-            return text
-                .toUpperCase()
-                .replace(/O/g, '0')
-                .replace(/[Il|]/g, '1')
-                .replace(/S/g, '5')
-                .replace(/B/g, '8')
-                .replace(/[]/g, '1')
-                .replace(/\s+/g, '')
-                .replace(/[\/\\|]/g, '/');
+        // Zatrzymanie kamery
+        video.srcObject.getTracks().forEach(t => t.stop());
+        video.style.display = 'none';
+        document.getElementById('startBtn').style.display = 'inline-block';
+        document.getElementById('captureBtn').style.display = 'none';
+
+        runOCR();
+    });
+
+    // 3. PRZETWARZANIE OBRAZU (DLA LEPSZEJ JAKOŚCI)
+    function preprocess() {
+        const ctx = canvas.getContext('2d');
+        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const d = imgData.data;
+
+        // Zamiana na czarno-białe (wysoki kontrast)
+        for (let i = 0; i < d.length; i += 4) {
+            const r = d[i];
+            const g = d[i+1];
+            const b = d[i+2];
+            // Jeśli piksel jest jasny -> zrób biały, jeśli ciemny -> zrób czarny
+            const v = (0.2126*r + 0.7152*g + 0.0722*b >= 90) ? 255 : 0;
+            d[i] = d[i+1] = d[i+2] = v;
         }
-
-        function extractInvoiceNumber(text) {
-            console.log('=== DEBUGOWANIE OCR ===');
-            console.log('Oryginalny tekst:', text);
-            
-            const normalized = normalizeText(text);
-            console.log('Znormalizowany tekst:', normalized);
-            
-            // Wzorce do testowania (od najbardziej do najmniej restrykcyjnego)
-            const patterns = [
-                /(\d{1,6})\/EK0\/UMW\/2025/gi,
-                /(\d{1,6})\/EK0\/UMW\/202[0-9]/gi,
-                /(\d{1,6})[\/\\|]EK0[\/\\|]UMW[\/\\|]2025/gi,
-                /(\d{1,6})[\/\\|]EK[0O][\/\\|]UMW[\/\\|]2025/gi,
-                /(\d{1,6})[\/\\|]*EK[0O][\/\\|]*UMW[\/\\|]*2025/gi,
-            ];
-            
-            for (let i = 0; i < patterns.length; i++) {
-                const matches = [...normalized.matchAll(patterns[i])];
-                console.log(`Wzorzec ${i + 1}:`, patterns[i], '→ Znaleziono:', matches.length);
-                
-                if (matches.length > 0) {
-                    const match = matches[0];
-                    const invoiceNumber = `${match[1]}/EKO/UMW/2025`;
-                    console.log('✓ SUKCES! Znaleziono:', invoiceNumber);
-                    return invoiceNumber;
-                }
-            }
-            
-            // Szukamy w oryginalnym tekście (bez normalizacji)
-            const rawPatterns = [
-                /(\d{1,6})[\/\\|]\s*[EeĘę][KkĸḰ][OoŌ0]\s*[\/\\|]\s*[UuŪ][MmṀ][WwẀ]\s*[\/\\|]\s*2025/gi,
-            ];
-            
-            for (let pattern of rawPatterns) {
-                const matches = [...text.matchAll(pattern)];
-                if (matches.length > 0) {
-                    const match = matches[0];
-                    const number = match[1];
-                    console.log('✓ Znaleziono w surowym tekście:', number);
-                    return `${number}/EKO/UMW/2025`;
-                }
-            }
-            
-            console.log('✗ Nie znaleziono numeru faktury');
-            return 'NULL';
-        }
-
-        async function scanImage(file) {
-            updateStatus('processing', 'Ładowanie obrazu...');
-            
-            const preview = document.getElementById('preview');
-            const reader = new FileReader();
-            
-            reader.onload = (e) => {
-                preview.src = e.target.result;
-                preview.classList.add('show');
-            };
-            reader.readAsDataURL(file);
-
-            try {
-                updateStatus('processing', 'Inicjalizacja OCR...');
-                
-                const worker = await Tesseract.createWorker('eng', 1, {
-                    logger: m => {
-                        if (m.status === 'recognizing text') {
-                            const progress = Math.round(m.progress * 100);
-                            updateStatus('processing', `Rozpoznawanie: ${progress}%`);
-                        }
-                    }
-                });
-
-                updateStatus('processing', 'Skanowanie faktury...');
-                
-                const { data: { text } } = await worker.recognize(file);
-                
-                console.log('=== SUROWY WYNIK OCR ===');
-                console.log(text);
-                
-                const invoiceNumber = extractInvoiceNumber(text);
-                
-                await worker.terminate();
-                
-                addInvoice(invoiceNumber, text.substring(0, 200));
-                refreshTable();
-                
-                const statusDiv = document.getElementById('status');
-                statusDiv.className = invoiceNumber === 'NULL' ? 'status error' : 'status success';
-                statusDiv.innerHTML = `
-                    <div>${invoiceNumber === 'NULL' ? '✗ Nie znaleziono numeru' : `✓ Znaleziono: ${invoiceNumber}`}</div>
-                    <div class="debug-text">OCR widzi: ${text.substring(0, 150)}...</div>
-                `;
-                
-                setTimeout(() => {
-                    preview.classList.remove('show');
-                }, 5000);
-                
-            } catch (error) {
-                console.error('Błąd OCR:', error);
-                updateStatus('error', '✗ Błąd: ' + error.message);
-            }
-        }
-
-        // === UI ===
         
-        function updateStatus(type, message) {
-            const statusEl = document.getElementById('status');
-            statusEl.className = `status ${type}`;
+        // Zapisz wynik na ukrytym płótnie
+        debugCanvas.width = canvas.width;
+        debugCanvas.height = canvas.height;
+        debugCanvas.getContext('2d').putImageData(imgData, 0, 0);
+        return debugCanvas;
+    }
+
+    // 4. ROZPOZNAWANIE TEKSTU (OFFLINE)
+    async function runOCR() {
+        statusEl.innerHTML = "⏳ Analizuję zdjęcie...";
+        
+        try {
+            // Skomplikowany kod, który mówi: "Użyj plików z tego samego folderu"
+            const worker = await Tesseract.createWorker('eng', 1, {
+                workerPath: './worker.min.js',
+                corePath: './tesseract-core.wasm.js',
+                langPath: './',
+                gzip: true
+            });
+
+            // Pozwalamy czytać tylko te znaki
+            await worker.setParameters({
+                tessedit_char_whitelist: '0123456789EKOUMW/|lI',
+            });
+
+            // Używamy przerobionego (czarno-białego) obrazu
+            const processedImage = preprocess();
+            const { data: { text } } = await worker.recognize(processedImage);
             
-            if (type === 'processing') {
-                statusEl.innerHTML = `<div><span class="loader"></span>${message}</div>`;
+            console.log("Odczytano:", text); // Do podglądu błędów
+            
+            // Szukamy wzorca
+            const cleanText = text.replace(/\s/g, '').toUpperCase();
+            // Regex: Cyfry + separator + EK(0lubO) + separator + UMW + separator + 2025
+            const match = cleanText.match(/(\d+)[\/1lI\|]EK[0O][\/1lI\|]UMW[\/1lI\|]2025/);
+
+            if (match) {
+                const number = match[1];
+                const fullInvoice = `${number}/EKO/UMW/2025`;
+                saveInvoice(fullInvoice);
+                statusEl.innerHTML = `<b style="color:green">✅ Dodano: ${fullInvoice}</b>`;
             } else {
-                statusEl.innerHTML = `<div>${message}</div>`;
+                statusEl.innerHTML = `<b style="color:red">❌ Nie widzę numeru. Spróbuj bliżej.</b><br><small>Odczytano: ${cleanText.slice(0, 20)}...</small>`;
             }
-        }
 
-        function refreshTable() {
-            const invoices = getInvoices();
-            const tbody = document.getElementById('invoiceTable');
-            const counter = document.getElementById('counter');
-            const downloadBtn = document.getElementById('downloadBtn');
-            
-            counter.textContent = `Zeskanowane faktury: ${invoices.length}`;
-            downloadBtn.disabled = invoices.length === 0;
-            
-            if (invoices.length === 0) {
-                tbody.innerHTML = `
-                    <tr>
-                        <td colspan="2" class="empty-state">
-                            Brak zeskanowanych faktur
-                        </td>
-                    </tr>
-                `;
-                return;
-            }
-            
-            tbody.innerHTML = invoices.reverse().map(inv => `
-                <tr>
-                    <td>${inv.number}</td>
-                    <td>
-                        <button class="btn-delete" onclick="handleDelete(${inv.id})">Usuń</button>
-                    </td>
-                </tr>
-            `).join('');
-        }
+            await worker.terminate();
 
-        function handleDelete(id) {
-            if (confirm('Usunąć tę fakturę?')) {
-                deleteInvoice(id);
-                refreshTable();
-                updateStatus('success', '✓ Faktura usunięta');
-            }
+        } catch (e) {
+            statusEl.innerText = "Błąd: " + e.message;
         }
+    }
 
-        function downloadCSV() {
-            const invoices = getInvoices();
-            
-            let csv = '\ufeffNumer faktury\n';
-            csv += invoices.map(inv => inv.number).join('\n');
-            
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            const url = URL.createObjectURL(blob);
-            
-            const date = new Date().toISOString().split('T')[0];
-            link.setAttribute('href', url);
-            link.setAttribute('download', `faktury_${date}.csv`);
-            link.style.visibility = 'hidden';
-            
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            
-            updateStatus('success', '✓ CSV pobrany');
-        }
+    // 5. ZAPISYWANIE I TABELA
+    function getInvoices() {
+        return JSON.parse(localStorage.getItem('faktury_eko') || '[]');
+    }
 
-        // === EVENTY ===
+    function saveInvoice(inv) {
+        const list = getInvoices();
+        list.push(inv);
+        localStorage.setItem('faktury_eko', JSON.stringify(list));
+        renderList();
+    }
+
+    function deleteInvoice(idx) {
+        const list = getInvoices();
+        list.splice(idx, 1);
+        localStorage.setItem('faktury_eko', JSON.stringify(list));
+        renderList();
+    }
+
+    function renderList() {
+        const list = getInvoices();
+        const tbody = document.getElementById('invoiceBody');
+        tbody.innerHTML = '';
         
-        document.getElementById('openCameraBtn').addEventListener('click', openCamera);
-        document.getElementById('closeCameraBtn').addEventListener('click', closeCamera);
-        document.getElementById('captureBtn').addEventListener('click', capturePhoto);
-        document.getElementById('switchCameraBtn').addEventListener('click', switchCamera);
-
-        document.getElementById('uploadBtn').addEventListener('click', () => {
-            document.getElementById('fileInput').click();
+        list.slice().reverse().forEach((inv, idx) => {
+            // Obliczamy prawdziwy index (bo odwróciliśmy listę)
+            const realIdx = list.length - 1 - idx; 
+            tbody.innerHTML += `<tr>
+                <td>${inv}</td>
+                <td><button class="del-btn" onclick="deleteInvoice(${realIdx})">X</button></td>
+            </tr>`;
         });
 
-        document.getElementById('fileInput').addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                scanImage(e.target.files[0]);
-            }
-            e.target.value = '';
-        });
+        document.getElementById('downloadBtn').disabled = (list.length === 0);
+    }
 
-        document.getElementById('downloadBtn').addEventListener('click', downloadCSV);
+    document.getElementById('downloadBtn').addEventListener('click', () => {
+        const list = getInvoices();
+        const csv = "Numer Faktury\n" + list.join("\n");
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = "faktury.csv";
+        document.body.appendChild(a);
+        a.click();
+    });
 
-        // === INICJALIZACJA ===
-        
-        refreshTable();
-        
-        console.log('✓ Aplikacja załadowana! Sprawdź konsolę po zrobieniu zdjęcia.');
-    </script>
+    // Na start
+    renderList();
+
+</script>
+
 </body>
 </html>
