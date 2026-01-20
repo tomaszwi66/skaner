@@ -3,271 +3,170 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Skaner Faktur V2</title>
+    <title>Skaner Diagnostyczny</title>
     <style>
-        body { font-family: sans-serif; background: #333; color: white; padding: 10px; text-align: center; }
-        .container { max-width: 600px; margin: 0 auto; }
+        body { font-family: sans-serif; background: #1a1a1a; color: white; margin: 0; padding: 10px; }
+        .box { max-width: 500px; margin: 0 auto; background: #2d2d2d; padding: 15px; border-radius: 12px; }
+        video { width: 100%; border-radius: 8px; background: #000; }
+        .controls { margin: 15px 0; }
+        .btn { width: 100%; padding: 15px; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; margin-bottom: 10px; }
+        .btn-capture { background: #ff9800; color: white; }
+        .btn-start { background: #2196F3; color: white; }
         
-        /* Obszar kamery */
-        .camera-box { position: relative; overflow: hidden; border-radius: 12px; border: 2px solid #555; background: black; }
-        video { width: 100%; display: block; }
-        
-        /* Nakładka celownika */
-        .overlay {
-            position: absolute; top: 30%; left: 10%; right: 10%; height: 40%;
-            border: 2px solid rgba(255, 255, 0, 0.5);
-            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
-            pointer-events: none;
-        }
-        .guide-text {
-            position: absolute; top: 10px; width: 100%; text-align: center;
-            color: yellow; text-shadow: 1px 1px 2px black; font-size: 14px;
-        }
+        /* Suwak do regulacji obrazu */
+        .slider-box { background: #444; padding: 10px; border-radius: 8px; margin: 10px 0; }
+        input[type=range] { width: 100%; }
 
-        /* Przyciski */
-        .btn { width: 100%; padding: 15px; margin-top: 10px; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; }
-        .btn-blue { background: #2196F3; color: white; }
-        .btn-green { background: #4CAF50; color: white; }
-        .btn-red { background: #f44336; color: white; }
-
-        /* Status i Debug */
-        #status { margin: 10px 0; padding: 10px; background: #444; border-radius: 5px; min-height: 20px; font-size: 14px; }
-        .debug-container { margin-top: 10px; background: white; color: black; padding: 10px; border-radius: 8px; }
-        canvas { max-width: 100%; height: auto; border: 1px solid red; } /* Czerwona ramka pokazuje co analizujemy */
+        #debug-zone { background: #000; padding: 10px; border-radius: 8px; margin-top: 10px; border: 1px solid #555; }
+        canvas { width: 100%; image-rendering: pixelated; border: 1px solid yellow; }
+        #raw-output { font-family: monospace; color: #00ff00; font-size: 12px; word-break: break-all; margin-top: 10px; text-align: left; }
         
-        /* Tabela */
-        table { width: 100%; margin-top: 20px; border-collapse: collapse; background: #fff; color: #000; border-radius: 8px; overflow: hidden; }
-        td, th { padding: 10px; border-bottom: 1px solid #ddd; text-align: left; }
+        .result-success { background: #2e7d32; padding: 10px; border-radius: 8px; margin: 10px 0; font-weight: bold; }
+        table { width: 100%; background: white; color: black; margin-top: 15px; border-collapse: collapse; }
+        td { padding: 8px; border-bottom: 1px solid #ccc; }
     </style>
     <script src="tesseract.min.js"></script>
 </head>
 <body>
 
-<div class="container">
-    <h3>Skaner Faktur V2</h3>
+<div class="box">
+    <video id="video" autoplay playsinline></video>
     
-    <div class="camera-box">
-        <video id="video" autoplay playsinline></video>
-        <div class="overlay"></div>
-        <div class="guide-text">Umieść numer w żółtej ramce<br>259405/EKO/UMW/2025</div>
+    <div class="controls">
+        <button id="startBtn" class="btn btn-start">1. WŁĄCZ KAMERĘ</button>
+        <button id="captureBtn" class="btn btn-capture" style="display:none;">2. ZRÓB ZDJĘCIE</button>
     </div>
 
-    <canvas id="canvas" style="display:none;"></canvas>
-
-    <button id="actionBtn" class="btn btn-blue">📷 Uruchom kamerę</button>
-
-    <div id="status">Czekam na uruchomienie...</div>
-
-    <div class="debug-container">
-        <p style="margin:0; font-size:12px; color:gray;">CO WIDZI ROBOT (sprawdź czy czytelne):</p>
-        <canvas id="debugCanvas"></canvas>
-        <p id="rawText" style="font-family: monospace; font-size: 11px; word-break: break-all; margin-top:5px;"></p>
+    <div class="slider-box">
+        <label>Jasność/Próg: <span id="threshVal">120</span></label>
+        <input type="range" id="threshold" min="50" max="200" value="120">
+        <small style="display:block; color:#bbb">Przesuń, jeśli obraz niżej jest za ciemny/jasny</small>
     </div>
 
-    <table id="invoiceTable">
-        <thead>
-            <tr style="background:#eee"><th>Numer</th><th>X</th></tr>
-        </thead>
-        <tbody id="invoiceBody"></tbody>
-    </table>
-    
-    <button id="downloadBtn" class="btn btn-green" style="display:none;">💾 Pobierz CSV</button>
+    <div id="status">Status: Gotowy</div>
+
+    <div id="debug-zone">
+        <small>PODGLĄD DLA ROBOTA:</small>
+        <canvas id="outCanvas"></canvas>
+        <div id="raw-output">Tekst z OCR: (tu pojawią się błędy)</div>
+    </div>
+
+    <div id="results"></div>
+
+    <table id="list"><tbody></tbody></table>
+    <button id="downloadBtn" class="btn" style="background:#4CAF50; color:white; display:none; margin-top:10px;">POBIERZ CSV</button>
 </div>
 
 <script>
     const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
-    const debugCanvas = document.getElementById('debugCanvas');
-    const statusEl = document.getElementById('status');
-    const btn = document.getElementById('actionBtn');
-    const rawTextEl = document.getElementById('rawText');
-    let stream = null;
+    const outCanvas = document.getElementById('outCanvas');
+    const status = document.getElementById('status');
+    const rawOut = document.getElementById('raw-output');
+    const threshSlider = document.getElementById('threshold');
+    const threshVal = document.getElementById('threshVal');
+
     let isCameraOn = false;
 
-    // === 1. KAMERA I PRZYCISKI ===
-    btn.addEventListener('click', async () => {
-        if (!isCameraOn) {
-            // Włączanie
-            try {
-                stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } } 
-                });
-                video.srcObject = stream;
-                isCameraOn = true;
-                btn.textContent = "📸 ZRÓB ZDJĘCIE";
-                btn.className = "btn btn-green";
-                statusEl.textContent = "Wyceluj i zrób zdjęcie";
-            } catch (e) {
-                statusEl.textContent = "Błąd kamery: " + e.message;
-            }
-        } else {
-            // Robienie zdjęcia
-            captureAndProcess();
-        }
-    });
+    // AKTUALIZACJA PROGU NA ŻYWO
+    threshSlider.oninput = function() { threshVal.innerText = this.value; }
 
-    // === 2. PRZETWARZANIE OBRAZU (Nowe podejście) ===
-    function captureAndProcess() {
-        // 1. Zrzut całej klatki
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        const ctx = canvas.getContext('2d');
+    document.getElementById('startBtn').onclick = async () => {
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+            video: { facingMode: "environment", width: 1280, height: 720 } 
+        });
+        video.srcObject = stream;
+        document.getElementById('startBtn').style.display = 'none';
+        document.getElementById('captureBtn').style.display = 'block';
+    };
+
+    document.getElementById('captureBtn').onclick = () => {
+        process();
+    };
+
+    async function process() {
+        status.innerText = "Skanuję...";
+        rawOut.innerText = "Czytam...";
+
+        // 1. Przygotowanie zdjęcia (wycinek środka)
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = video.videoWidth;
+        tempCanvas.height = video.videoHeight;
+        const ctx = tempCanvas.getContext('2d');
         ctx.drawImage(video, 0, 0);
 
-        // 2. WYCINANIE (Crop) - Bierzemy tylko środek (tam gdzie żółta ramka)
-        // Zakładamy, że ramka to środkowe 40% wysokości
-        const sourceX = 0;
-        const sourceY = canvas.height * 0.30; // Zaczynamy od 30% wysokości
-        const sourceW = canvas.width;
-        const sourceH = canvas.height * 0.40; // Bierzemy 40% wysokości
+        // Wycinamy pasek ze środka (20% wysokości ekranu)
+        const h = tempCanvas.height * 0.25;
+        const w = tempCanvas.width;
+        outCanvas.width = w;
+        outCanvas.height = h;
+        const outCtx = outCanvas.getContext('2d');
+        outCtx.drawImage(tempCanvas, 0, tempCanvas.height * 0.37, w, h, 0, 0, w, h);
 
-        // Ustawiamy płótno podglądu (debug) na rozmiar wycinka
-        debugCanvas.width = sourceW;
-        debugCanvas.height = sourceH;
-        const dCtx = debugCanvas.getContext('2d');
-
-        // Rysujemy wycinek
-        dCtx.drawImage(canvas, sourceX, sourceY, sourceW, sourceH, 0, 0, sourceW, sourceH);
-
-        // 3. FILTRY (Skala szarości + Kontrast) - Łagodniejsze niż wcześniej
-        const imgData = dCtx.getImageData(0, 0, sourceW, sourceH);
+        // 2. Obróbka - CZERŃ I BIEL (Threshold)
+        const imgData = outCtx.getImageData(0, 0, w, h);
         const data = imgData.data;
-        
+        const threshold = parseInt(threshSlider.value);
+
         for (let i = 0; i < data.length; i += 4) {
-            // Konwersja na szarość (standardowa metoda luminancji)
-            let gray = 0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2];
-            
-            // Zwiększenie kontrastu (prosty algorytm)
-            // Jeśli ciemne -> jeszcze ciemniejsze. Jeśli jasne -> jaśniejsze.
-            gray = (gray - 128) * 1.5 + 128; 
-
-            // Ograniczenie do 0-255
-            if (gray < 0) gray = 0;
-            if (gray > 255) gray = 255;
-
-            data[i] = data[i+1] = data[i+2] = gray;
+            const avg = (data[i] + data[i+1] + data[i+2]) / 3;
+            const val = avg >= threshold ? 255 : 0;
+            data[i] = data[i+1] = data[i+2] = val;
         }
-        dCtx.putImageData(imgData, 0, 0);
+        outCtx.putImageData(imgData, 0, 0);
 
-        // Zatrzymujemy kamerę na chwilę (efekt 'zamrożenia')
-        video.pause();
-        runOCR();
-    }
-
-    // === 3. OCR (Mózg) ===
-    async function runOCR() {
-        statusEl.textContent = "⏳ Analizuję cyferki...";
-        rawTextEl.textContent = "Czytanie...";
-        btn.disabled = true;
-
+        // 3. OCR
         try {
             const worker = await Tesseract.createWorker('eng', 1, {
-                workerPath: './worker.min.js',
-                corePath: './tesseract-core.wasm.js',
-                langPath: './',
-                gzip: true
+                workerPath: './worker.min.js', corePath: './tesseract-core.wasm.js', langPath: './', gzip: true
             });
 
-            // Pozwalamy na znaki alfanumeryczne (bez spacji i kropek w whitelist, żeby nie śmiecił)
-            await worker.setParameters({
-                tessedit_char_whitelist: '0123456789EKOUMW', // Tylko to nas interesuje
-            });
-
-            // Czytamy z debugCanvas (tego czarno-białego paska)
-            const { data: { text } } = await worker.recognize(debugCanvas);
+            await worker.setParameters({ tessedit_char_whitelist: '0123456789EKOUMW/|' });
+            const { data: { text } } = await worker.recognize(outCanvas);
             
-            console.log("RAW:", text);
-            
-            // Czyścimy wszystko co nie jest literą lub cyfrą
-            // Np. "259 405 / E K O" zamieni się na "259405EKO"
-            const clean = text.replace(/[^A-Z0-9]/g, '');
-            rawTextEl.textContent = "Widzę surowe: " + clean;
+            rawOut.innerText = "ODCZYTANO: " + text;
 
-            // SZUKAMY WZORCA
-            // Szukamy: Cyfry (4 do 8 sztuk) + EK + (O lub 0) + UMW + 2025
-            const match = clean.match(/(\d{4,8})EK[O0]UMW2025/);
+            // SZUKANIE NUMERU (Bardzo elastyczne)
+            // Szukamy samych cyfr, które stoją przed EKO
+            const clean = text.replace(/\s/g, '').toUpperCase();
+            const pattern = /(\d{4,})[\|\/1I]?EK[O0][\|\/1I]?UMW[\|\/1I]?2025/;
+            const match = clean.match(pattern);
 
             if (match) {
-                const number = match[1]; // To jest ta grupa (\d{4,8})
-                const fullInvoice = `${number}/EKO/UMW/2025`;
-                
-                addInvoice(fullInvoice);
-                statusEl.innerHTML = `<span style="color:#4CAF50; font-weight:bold;">✅ MAMY TO: ${number}</span>`;
+                const nr = match[1] + "/EKO/UMW/2025";
+                save(nr);
+                status.innerHTML = `<div class="result-success">ZNALEZIONO: ${nr}</div>`;
             } else {
-                statusEl.innerHTML = `<span style="color:#f44336">❌ Nie rozpoznano wzorca.</span>`;
+                status.innerText = "Nie dopasowano wzoru. Popraw suwak jasności.";
             }
 
             await worker.terminate();
-
         } catch (e) {
-            statusEl.textContent = "Błąd: " + e.message;
+            status.innerText = "Błąd: " + e.message;
         }
+    }
 
-        // Reset przycisku
-        btn.disabled = false;
-        btn.textContent = "🔄 Skanuj ponownie";
-        btn.className = "btn btn-blue";
-        btn.onclick = () => {
-            video.play();
-            btn.onclick = null; // Usuwamy ten handler
-            // Przywracamy standardowe działanie przycisku (zrobienie zdjęcia)
-            btn.textContent = "📸 ZRÓB ZDJĘCIE";
-            btn.className = "btn btn-green";
+    function save(nr) {
+        let list = JSON.parse(localStorage.getItem('faktury_diag') || '[]');
+        if(!list.includes(nr)) list.push(nr);
+        localStorage.setItem('faktury_diag', JSON.stringify(list));
+        render();
+    }
+
+    function render() {
+        const list = JSON.parse(localStorage.getItem('faktury_diag') || '[]');
+        const tbody = document.querySelector('#list tbody');
+        tbody.innerHTML = list.map(item => `<tr><td>${item}</td></tr>`).join('');
+        if(list.length > 0) document.getElementById('downloadBtn').style.display = 'block';
+        
+        document.getElementById('downloadBtn').onclick = () => {
+            const csv = "Numer Faktury\n" + list.join("\n");
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
+            a.download = 'faktury.csv';
+            a.click();
         };
     }
-
-    // === 4. TABELA I ZAPIS ===
-    function getInvoices() { return JSON.parse(localStorage.getItem('faktury_v2') || '[]'); }
-    
-    function addInvoice(inv) {
-        const list = getInvoices();
-        // Unikamy duplikatów
-        if(!list.includes(inv)) {
-            list.push(inv);
-            localStorage.setItem('faktury_v2', JSON.stringify(list));
-            renderTable();
-        } else {
-             statusEl.innerHTML += " (Duplikat)";
-        }
-    }
-
-    function removeInvoice(index) {
-        const list = getInvoices();
-        list.splice(index, 1);
-        localStorage.setItem('faktury_v2', JSON.stringify(list));
-        renderTable();
-    }
-
-    function renderTable() {
-        const list = getInvoices();
-        const tbody = document.getElementById('invoiceBody');
-        tbody.innerHTML = '';
-        list.slice().reverse().forEach((inv, idx) => {
-            const realIdx = list.length - 1 - idx;
-            tbody.innerHTML += `<tr>
-                <td>${inv}</td>
-                <td onclick="removeInvoice(${realIdx})" style="color:red; font-weight:bold; cursor:pointer;">X</td>
-            </tr>`;
-        });
-        
-        const downBtn = document.getElementById('downloadBtn');
-        if(list.length > 0) {
-            downBtn.style.display = 'block';
-            downBtn.onclick = () => {
-                const csv = "Numer Faktury\n" + list.join("\n");
-                const a = document.createElement('a');
-                a.href = URL.createObjectURL(new Blob([csv], {type: 'text/csv'}));
-                a.download = 'faktury.csv';
-                document.body.appendChild(a);
-                a.click();
-            }
-        } else {
-            downBtn.style.display = 'none';
-        }
-    }
-
-    renderTable();
+    render();
 </script>
-
 </body>
 </html>
