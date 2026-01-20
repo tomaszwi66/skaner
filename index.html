@@ -3,112 +3,140 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Skaner V22 - Natural</title>
+    <title>Skaner V23 - High Res</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: sans-serif; background: #000; color: #fff; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        body { font-family: sans-serif; background: #000; color: #fff; height: 100vh; display: flex; flex-direction: column; }
+        
         #start-overlay { position: absolute; inset: 0; background: #000; z-index: 100; display: flex; align-items: center; justify-content: center; }
         .btn-start { background: #007bff; color: #fff; padding: 20px; border-radius: 50px; border: none; font-weight: bold; }
-        .preview-container { position: relative; width: 100%; height: 40vh; background: #111; }
-        #main-view { width: 100%; height: 100%; object-fit: contain; }
-        video { display: none; }
-        .reticle { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 85%; height: 70px; border: 3px solid #ff3b30; z-index: 10; pointer-events: none; }
-        .bottom-panel { flex-grow: 1; padding: 15px; background: #1a1a1a; overflow-y: auto; }
+
+        /* Kontener na wideo - teraz zajmuje połowę ekranu bez deformacji */
+        .preview-container { 
+            position: relative; 
+            width: 100%; 
+            height: 50vh; 
+            background: #000; 
+            overflow: hidden; 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        video { 
+            width: 100%; 
+            height: 100%; 
+            object-fit: cover; /* Zapobiega miażdżeniu obrazu */
+        }
+        .reticle { 
+            position: absolute; 
+            width: 80%; 
+            height: 60px; 
+            border: 3px solid #00ff00; 
+            box-shadow: 0 0 0 2000px rgba(0,0,0,0.5);
+            z-index: 10; 
+            pointer-events: none; 
+        }
+
+        .bottom-panel { flex-grow: 1; padding: 15px; background: #1a1a1a; overflow-y: auto; text-align: center; }
         .btn { width: 100%; padding: 18px; border: none; border-radius: 12px; font-weight: bold; margin-bottom: 12px; font-size: 18px; }
-        .btn-scan { background: #ff3b30; color: #fff; }
-        .btn-save { background: #4cd964; color: #000; }
-        input[type=text] { width: 100%; padding: 15px; font-size: 24px; text-align: center; margin-bottom: 10px; border-radius: 8px; border: 2px solid #ff3b30; font-weight: bold; }
-        .slider-group { margin-bottom: 15px; display: flex; align-items: center; gap: 10px; }
-        .slider-group label { font-size: 12px; color: #aaa; min-width: 70px; }
-        input[type=range] { flex-grow: 1; height: 30px; }
+        .btn-scan { background: #00ff00; color: #000; }
+        .btn-save { background: #ffc107; color: #000; }
+        
+        input[type=text] { width: 100%; padding: 15px; font-size: 24px; text-align: center; margin-bottom: 10px; border-radius: 8px; border: none; font-weight: bold; background: #fff; color: #000; }
+        #status { font-size: 14px; color: #00ff00; margin-bottom: 10px; min-height: 20px; }
+        #log-area { background: #fff; color: #000; border-radius: 8px; margin-top: 10px; text-align: left; }
+        .log-item { padding: 10px; border-bottom: 1px solid #eee; font-family: monospace; }
     </style>
     <script src="tesseract.min.js"></script>
 </head>
 <body>
 
 <div id="start-overlay">
-    <button id="startBtn" class="btn-start">URUCHOM APARAT</button>
+    <button id="startBtn" class="btn-start">URUCHOM APARAT V23</button>
 </div>
 
 <div class="preview-container">
-    <canvas id="main-view"></canvas>
+    <video id="video" autoplay playsinline></video>
     <div class="reticle"></div>
 </div>
 
-<video id="video" autoplay playsinline></video>
-
 <div class="bottom-panel">
-    <button id="scanBtn" class="btn btn-scan">FOTO I ODCZYT</button>
-    <input type="text" id="manual-edit" placeholder="...">
-    <button id="saveBtn" class="btn btn-save">ZAPISZ NUMER</button>
-    
-    <div class="slider-group">
-        <label>ZOOM:</label>
-        <input type="range" id="zoom" min="1" max="5" step="0.1" value="2.0">
-    </div>
-    
-    <div id="status" style="text-align:center; font-size:12px; color:#ff3b30;">Trzymaj telefon stabilnie</div>
-    <div id="results" style="margin-top:10px; background:#fff; color:#000; border-radius:8px;"></div>
+    <div id="status">Skup ostrość na tekście</div>
+    <button id="scanBtn" class="btn btn-scan">SKANUJ (FOTO)</button>
+    <input type="text" id="manual-edit" placeholder="Wynik pojawi się tutaj">
+    <button id="saveBtn" class="btn btn-save">ZAPISZ DO LISTY</button>
+    <div id="log-area"></div>
 </div>
 
 <script>
     const video = document.getElementById('video');
-    const canvas = document.getElementById('main-view');
-    const ctx = canvas.getContext('2d');
+    const status = document.getElementById('status');
     const manualEdit = document.getElementById('manual-edit');
 
     document.getElementById('startBtn').onclick = async () => {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: 1920 } });
-        video.srcObject = stream;
-        document.getElementById('start-overlay').style.display = 'none';
-        requestAnimationFrame(render);
+        try {
+            // Wymuszamy Full HD, aby uniknąć niskiej rozdzielczości
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { 
+                    facingMode: "environment", 
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 }
+                } 
+            });
+            video.srcObject = stream;
+            document.getElementById('start-overlay').style.display = 'none';
+        } catch (e) {
+            alert("Błąd kamery: " + e.message);
+        }
     };
 
-    function render() {
-        canvas.width = canvas.clientWidth;
-        canvas.height = canvas.clientHeight;
-        const z = parseFloat(document.getElementById('zoom').value);
-        const sw = video.videoWidth / z;
-        const sh = video.videoHeight / z;
-        const sx = (video.videoWidth - sw) / 2;
-        const sy = (video.videoHeight - sh) / 2;
-        ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
-        requestAnimationFrame(render);
-    }
-
     document.getElementById('scanBtn').onclick = async () => {
-        document.getElementById('status').innerText = "⏳ ANALIZA ZDJĘCIA...";
+        status.innerText = "⏳ ROBIĘ ZDJĘCIE I CZYTAM...";
         
-        // Przygotowujemy czyste zdjęcie fragmentu (bez filtrów niszczących obraz)
+        // Tworzymy ukryty canvas do przechwycenia klatki w pełnej jakości
+        const captureCanvas = document.createElement('canvas');
+        captureCanvas.width = video.videoWidth;
+        captureCanvas.height = video.videoHeight;
+        const ctx = captureCanvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
+
+        // Wycinamy pasek ze środka zdjęcia (odpowiadający zielonej ramce)
         const ocrCanvas = document.createElement('canvas');
-        ocrCanvas.width = 800;
-        ocrCanvas.height = 160;
+        ocrCanvas.width = 1000;
+        ocrCanvas.height = 200;
         const ocrCtx = ocrCanvas.getContext('2d');
         
-        // Pobieramy kolorowy obraz z ramki
-        ocrCtx.drawImage(canvas, canvas.width * 0.05, canvas.height * 0.5 - 40, canvas.width * 0.9, 80, 0, 0, 800, 160);
+        // Obliczamy proporcje wycięcia
+        const cropW = captureCanvas.width * 0.8;
+        const cropH = captureCanvas.height * 0.1;
+        const cropX = (captureCanvas.width - cropW) / 2;
+        const cropY = (captureCanvas.height - cropH) / 2;
+
+        ocrCtx.drawImage(captureCanvas, cropX, cropY, cropW, cropH, 0, 0, 1000, 200);
 
         try {
             const worker = await Tesseract.createWorker('eng');
-            // Zmieniamy tryb na 6 lub 11 - lepsze dla pisma odręcznego
             await worker.setParameters({
                 tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ/',
-                tessedit_pageseg_mode: '6' 
+                tessedit_pageseg_mode: '7' 
             });
+            
             const { data: { text } } = await worker.recognize(ocrCanvas);
             manualEdit.value = text.replace(/[^0-9A-Z/]/g, '').trim();
-            document.getElementById('status').innerText = "Gotowe!";
+            status.innerText = "Gotowe!";
             await worker.terminate();
-        } catch (e) { alert(e); }
+        } catch (e) {
+            status.innerText = "Błąd: " + e.message;
+        }
     };
 
     document.getElementById('saveBtn').onclick = () => {
-        if(!manualEdit.value) return;
-        const div = document.createElement('div');
-        div.style.padding = "10px";
-        div.style.borderBottom = "1px solid #ccc";
-        div.innerText = manualEdit.value;
-        document.getElementById('results').prepend(div);
+        const val = manualEdit.value.trim();
+        if(!val) return;
+        const item = document.createElement('div');
+        item.className = 'log-item';
+        item.innerText = val;
+        document.getElementById('log-area').prepend(item);
         manualEdit.value = "";
     };
 </script>
