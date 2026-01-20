@@ -2,158 +2,186 @@
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Skaner Faktur - Wersja Długopis</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Skaner V8 - Poprawiony Układ</title>
     <style>
-        body { font-family: sans-serif; background: #121212; color: #e0e0e0; margin: 0; padding: 10px; text-align: center; }
-        .container { max-width: 500px; margin: 0 auto; }
-        video { width: 100%; border-radius: 12px; border: 2px solid #333; }
-        .btn { width: 100%; padding: 16px; border: none; border-radius: 10px; font-size: 18px; font-weight: bold; cursor: pointer; margin: 10px 0; }
-        .btn-main { background: #007bff; color: white; }
-        .btn-snap { background: #28a745; color: white; display: none; }
-        #debug-zone { background: #000; padding: 10px; border-radius: 10px; border: 1px solid #444; margin-top: 10px; }
-        canvas { width: 100%; border: 1px solid #666; image-rendering: pixelated; }
-        #status { font-weight: bold; margin: 10px 0; color: #ffc107; }
-        #raw-text { font-family: monospace; font-size: 12px; color: #00ff00; background: #222; padding: 10px; border-radius: 5px; min-height: 20px; word-break: break-all; }
-        table { width: 100%; background: white; color: black; margin-top: 20px; border-collapse: collapse; border-radius: 8px; overflow: hidden; }
-        td { padding: 12px; border-bottom: 1px solid #eee; text-align: left; }
+        /* Reset i podstawy */
+        * { box-sizing: border-box; }
+        body { font-family: sans-serif; background: #000; color: #fff; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        
+        /* Górna część: Podgląd filtra (stała wysokość) */
+        .preview-container { position: relative; width: 100%; height: 50vh; background: #111; flex-shrink: 0; }
+        #main-view { width: 100%; height: 100%; object-fit: contain; }
+        video { display: none; }
+
+        /* Celownik */
+        .reticle { 
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 85%; height: 50px; border: 2px solid #00ff00; 
+            box-shadow: 0 0 0 1000px rgba(0,0,0,0.3); pointer-events: none; z-index: 10;
+        }
+
+        /* Dolna część: Panel sterowania (PRZEWIJALNY) */
+        .bottom-panel { flex-grow: 1; overflow-y: auto; background: #1a1a1a; padding: 15px; border-top: 2px solid #333; }
+        
+        .slider-group { margin-bottom: 15px; text-align: left; }
+        label { display: block; font-size: 13px; color: #ffeb3b; margin-bottom: 5px; font-weight: bold; }
+        input[type=range] { width: 100%; height: 30px; }
+
+        .btn { width: 100%; padding: 15px; border: none; border-radius: 10px; font-size: 18px; font-weight: bold; cursor: pointer; margin-bottom: 10px; }
+        .btn-scan { background: #28a745; color: white; }
+        .btn-csv { background: #6c757d; color: white; font-size: 14px; }
+        
+        #status { font-size: 14px; color: #ffeb3b; margin-bottom: 10px; font-weight: bold; }
+        
+        /* Tabela wyników */
+        table { width: 100%; background: #fff; color: #000; border-collapse: collapse; border-radius: 8px; overflow: hidden; margin-top: 10px; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; font-size: 14px; }
+        th { background: #eee; }
     </style>
     <script src="tesseract.min.js"></script>
 </head>
 <body>
 
-<div class="container">
-    <video id="video" autoplay playsinline></video>
-    
-    <button id="startBtn" class="btn btn-main">1. URUCHOM KAMERĘ</button>
-    <button id="captureBtn" class="btn btn-snap">2. SKANUJ NUMER</button>
+<div class="preview-container">
+    <canvas id="main-view"></canvas>
+    <div class="reticle"></div>
+</div>
 
-    <div id="status">Gotowy</div>
+<video id="video" autoplay playsinline></video>
 
-    <div id="debug-zone">
-        <p style="font-size:10px; margin:0 0 5px 0;">PODGLĄD (Musi być widać długopis!):</p>
-        <canvas id="outCanvas"></canvas>
-        <div id="raw-text">Tu pojawi się odczyt...</div>
+<div class="bottom-panel">
+    <div id="status">Ustaw widok i skanuj</div>
+
+    <button id="scanBtn" class="btn btn-scan">SKANUJ NUMER</button>
+
+    <div class="slider-group">
+        <label>CZYTELNOŚĆ (Threshold):</label>
+        <input type="range" id="threshold" min="30" max="220" value="130">
     </div>
 
-    <table id="list"><tbody></tbody></table>
-    <button id="downloadBtn" class="btn" style="background:#6c757d; color:white; display:none;">POBIERZ CSV</button>
+    <div class="slider-group">
+        <label>POWIĘKSZENIE (Zoom):</label>
+        <input type="range" id="zoom" min="1" max="4" step="0.1" value="1.5">
+    </div>
+
+    <button id="downloadBtn" class="btn btn-csv" style="display:none;">POBIERZ CSV</button>
+
+    <table>
+        <thead><tr><th>Zeskanowane numery</th></tr></thead>
+        <tbody id="results-body"></tbody>
+    </table>
 </div>
 
 <script>
     const video = document.getElementById('video');
-    const outCanvas = document.getElementById('outCanvas');
+    const canvas = document.getElementById('main-view');
+    const ctx = canvas.getContext('2d', {willReadFrequently: true});
     const status = document.getElementById('status');
-    const rawTextEl = document.getElementById('raw-text');
-    const outCtx = outCanvas.getContext('2d', { willReadFrequently: true });
+    const threshSlider = document.getElementById('threshold');
+    const zoomSlider = document.getElementById('zoom');
+    const resultsBody = document.getElementById('results-body');
+    const downloadBtn = document.getElementById('downloadBtn');
 
-    // 1. START KAMERY
-    document.getElementById('startBtn').onclick = async () => {
+    let isLive = false;
+
+    async function init() {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } } 
+                video: { facingMode: "environment", width: { ideal: 1280 } } 
             });
             video.srcObject = stream;
-            document.getElementById('startBtn').style.display = 'none';
-            document.getElementById('captureBtn').style.display = 'block';
-            status.innerText = "Ustaw numer w centrum i kliknij Skanuj";
+            isLive = true;
+            requestAnimationFrame(renderFilter);
+        } catch (e) { status.innerText = "Błąd kamery: " + e.message; }
+    }
+
+    function renderFilter() {
+        if (!isLive) return;
+        const w = video.videoWidth;
+        const h = video.videoHeight;
+        if (w > 0) {
+            canvas.width = canvas.clientWidth;
+            canvas.height = canvas.clientHeight;
+            const z = parseFloat(zoomSlider.value);
+            const sw = w / z;
+            const sh = h / z;
+            const sx = (w - sw) / 2;
+            const sy = (h - sh) / 2;
+            ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const d = imgData.data;
+            const threshold = parseInt(threshSlider.value);
+            for (let i = 0; i < d.length; i += 4) {
+                const b = (d[i] + d[i+1] + d[i+2]) / 3;
+                const v = b < threshold ? 0 : 255;
+                d[i] = d[i+1] = d[i+2] = v;
+            }
+            ctx.putImageData(imgData, 0, 0);
+        }
+        requestAnimationFrame(renderFilter);
+    }
+
+    document.getElementById('scanBtn').onclick = async () => {
+        status.innerText = "⏳ ANALIZUJĘ...";
+        const ocrCanvas = document.createElement('canvas');
+        ocrCanvas.width = canvas.width * 0.85;
+        ocrCanvas.height = 80; // Trochę wyższy wycinek dla pisma ręcznego
+        const ocrCtx = ocrCanvas.getContext('2d');
+        ocrCtx.drawImage(canvas, canvas.width * 0.075, canvas.height * 0.5 - 40, ocrCanvas.width, 80, 0, 0, ocrCanvas.width, 80);
+
+        try {
+            const worker = await Tesseract.createWorker('eng', 1, {
+                workerPath: './worker.min.js', corePath: './tesseract-core.wasm.js', langPath: './', gzip: true
+            });
+            // PSM 7: Treat the image as a single text line. (Najlepsze dla numerów)
+            await worker.setParameters({ 
+                tessedit_char_whitelist: '0123456789EKOUMW/|lI',
+                tessedit_pageseg_mode: '7' 
+            });
+            
+            const { data: { text } } = await worker.recognize(ocrCanvas);
+            const clean = text.replace(/\s/g, '').toUpperCase();
+            // Elastyczne szukanie (akceptuje błędy w EKO/UMW)
+            const match = clean.match(/(\d{4,8}).{0,3}EK.{0,2}UMW.{0,2}2025/);
+
+            if (match) {
+                const res = match[1] + "/EKO/UMW/2025";
+                saveResult(res);
+                status.innerHTML = "✅ ZAPISANO!";
+            } else {
+                status.innerHTML = "❓ NIE ROZPOZNANO (Widzę: " + clean.substring(0,12) + ")";
+            }
+            await worker.terminate();
         } catch (e) { status.innerText = "Błąd: " + e.message; }
     };
 
-    // 2. PRZETWARZANIE (Zoptymalizowane pod długopis)
-    document.getElementById('captureBtn').onclick = async () => {
-        status.innerText = "Przetwarzanie...";
-        
-        // Wycinamy środek
-        const w = video.videoWidth;
-        const h = video.videoHeight;
-        const cropH = h * 0.25; // Pasek 25% wysokości
-        
-        outCanvas.width = w;
-        outCanvas.height = cropH;
-        
-        // Rysujemy wycinek
-        outCtx.drawImage(video, 0, h*0.37, w, cropH, 0, 0, w, cropH);
-
-        // FILTR: Zamiast czarno-białego, robimy inteligentny kontrast
-        const imgData = outCtx.getImageData(0, 0, w, cropH);
-        const d = imgData.data;
-        
-        for (let i = 0; i < d.length; i += 4) {
-            // Skala szarości
-            let v = 0.2126 * d[i] + 0.7152 * d[i+1] + 0.0722 * d[i+2];
-            
-            // MOCNY KONTRAST (Adaptive-like)
-            // Wyciągamy ciemne linie (długopis) i rozjaśniamy tło
-            if (v < 130) { v = v * 0.5; } // Przyciemnij to co już ciemne (długopis)
-            else { v = 255; } // Wybiel tło
-            
-            d[i] = d[i+1] = d[i+2] = v;
-        }
-        outCtx.putImageData(imgData, 0, 0);
-
-        runOCR();
-    };
-
-    // 3. OCR
-    async function runOCR() {
-        status.innerText = "Robot czyta...";
-        try {
-            const worker = await Tesseract.createWorker('eng', 1, {
-                workerPath: './worker.min.js',
-                corePath: './tesseract-core.wasm.js',
-                langPath: './',
-                gzip: true
-            });
-
-            await worker.setParameters({
-                tessedit_char_whitelist: '0123456789EKOUMW/|lI',
-            });
-
-            const { data: { text } } = await worker.recognize(outCanvas);
-            rawTextEl.innerText = "Odczytano: " + text;
-
-            // Sprzątanie tekstu pod wzorzec
-            const clean = text.replace(/\s/g, '').toUpperCase();
-            const match = clean.match(/(\d{4,})[\/|lI1]EK[0O][\/|lI1]UMW[\/|lI1]2025/);
-
-            if (match) {
-                const finalNr = match[1] + "/EKO/UMW/2025";
-                save(finalNr);
-                status.innerHTML = `<span style="color:#28a745">ZNALEZIONO: ${finalNr}</span>`;
-            } else {
-                status.innerText = "Nie znaleziono wzoru. Spróbuj zmienić kąt.";
-            }
-            await worker.terminate();
-        } catch (e) { status.innerText = "Błąd OCR: " + e.message; }
-    }
-
-    function save(nr) {
-        let list = JSON.parse(localStorage.getItem('faktury_final') || '[]');
+    function saveResult(nr) {
+        let list = JSON.parse(localStorage.getItem('faktury_v8') || '[]');
         if(!list.includes(nr)) {
             list.push(nr);
-            localStorage.setItem('faktury_final', JSON.stringify(list));
+            localStorage.setItem('faktury_v8', JSON.stringify(list));
         }
-        render();
+        renderTable();
     }
 
-    function render() {
-        const list = JSON.parse(localStorage.getItem('faktury_final') || '[]');
-        const tbody = document.querySelector('#list tbody');
-        tbody.innerHTML = list.map((item, idx) => `<tr><td>${item}</td></tr>`).join('');
-        if(list.length > 0) document.getElementById('downloadBtn').style.display = 'block';
+    function renderTable() {
+        const list = JSON.parse(localStorage.getItem('faktury_v8') || '[]');
+        resultsBody.innerHTML = list.slice().reverse().map(item => `<tr><td>${item}</td></tr>`).join('');
+        if(list.length > 0) downloadBtn.style.display = 'block';
     }
 
-    document.getElementById('downloadBtn').onclick = () => {
-        const list = JSON.parse(localStorage.getItem('faktury_final') || '[]');
-        const csv = "Numer Faktury\n" + list.join("\n");
+    downloadBtn.onclick = () => {
+        const list = JSON.parse(localStorage.getItem('faktury_v8') || '[]');
+        const csv = "\uFEFFNumer Faktury\n" + list.join("\n");
         const a = document.createElement('a');
-        a.href = URL.createObjectURL(new Blob([csv], {type: 'text/csv'}));
+        a.href = URL.createObjectURL(new Blob([csv], {type: 'text/csv;charset=utf-8'}));
         a.download = 'faktury.csv';
         a.click();
     };
 
-    render();
+    init();
+    renderTable();
 </script>
 </body>
 </html>
