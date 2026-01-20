@@ -3,41 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Skaner V8 - Poprawiony Układ</title>
+    <title>Skaner V10 - Lokalny i Bezpieczny</title>
     <style>
-        /* Reset i podstawy */
         * { box-sizing: border-box; }
         body { font-family: sans-serif; background: #000; color: #fff; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-        
-        /* Górna część: Podgląd filtra (stała wysokość) */
-        .preview-container { position: relative; width: 100%; height: 50vh; background: #111; flex-shrink: 0; }
+        .preview-container { position: relative; width: 100%; height: 40vh; background: #000; flex-shrink: 0; }
         #main-view { width: 100%; height: 100%; object-fit: contain; }
         video { display: none; }
-
-        /* Celownik */
         .reticle { 
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: 85%; height: 50px; border: 2px solid #00ff00; 
-            box-shadow: 0 0 0 1000px rgba(0,0,0,0.3); pointer-events: none; z-index: 10;
+            width: 90%; height: 45px; border: 2px solid #00ff00; 
+            box-shadow: 0 0 0 1000px rgba(0,0,0,0.5); pointer-events: none; z-index: 10;
         }
-
-        /* Dolna część: Panel sterowania (PRZEWIJALNY) */
-        .bottom-panel { flex-grow: 1; overflow-y: auto; background: #1a1a1a; padding: 15px; border-top: 2px solid #333; }
+        .bottom-panel { flex-grow: 1; overflow-y: auto; background: #1a1a1a; padding: 15px; border-top: 2px solid #444; }
         
-        .slider-group { margin-bottom: 15px; text-align: left; }
-        label { display: block; font-size: 13px; color: #ffeb3b; margin-bottom: 5px; font-weight: bold; }
+        /* Sekcja Korekty */
+        .edit-zone { background: #333; padding: 10px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #555; }
+        input[type=text] { width: 100%; padding: 12px; font-size: 18px; text-align: center; border-radius: 5px; border: none; margin-bottom: 8px; font-weight: bold; }
+        
+        .btn { width: 100%; padding: 15px; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; margin-bottom: 8px; }
+        .btn-scan { background: #28a745; color: white; font-size: 18px; }
+        .btn-save { background: #007bff; color: white; }
+        .btn-csv { background: #6c757d; color: white; }
+
+        .slider-group { margin-bottom: 12px; }
+        label { display: block; font-size: 11px; color: #ffeb3b; margin-bottom: 4px; }
         input[type=range] { width: 100%; height: 30px; }
 
-        .btn { width: 100%; padding: 15px; border: none; border-radius: 10px; font-size: 18px; font-weight: bold; cursor: pointer; margin-bottom: 10px; }
-        .btn-scan { background: #28a745; color: white; }
-        .btn-csv { background: #6c757d; color: white; font-size: 14px; }
-        
-        #status { font-size: 14px; color: #ffeb3b; margin-bottom: 10px; font-weight: bold; }
-        
-        /* Tabela wyników */
-        table { width: 100%; background: #fff; color: #000; border-collapse: collapse; border-radius: 8px; overflow: hidden; margin-top: 10px; }
-        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; font-size: 14px; }
-        th { background: #eee; }
+        #status { font-size: 13px; color: #0f0; margin-bottom: 8px; min-height: 18px; }
+        table { width: 100%; background: #fff; color: #000; border-collapse: collapse; margin-top: 10px; }
+        td { padding: 8px; border-bottom: 1px solid #ccc; font-size: 13px; font-family: monospace; }
     </style>
     <script src="tesseract.min.js"></script>
 </head>
@@ -51,24 +46,29 @@
 <video id="video" autoplay playsinline></video>
 
 <div class="bottom-panel">
-    <div id="status">Ustaw widok i skanuj</div>
+    <div id="status">Skieruj celownik na pismo ręczne</div>
+    
+    <button id="scanBtn" class="btn btn-scan">1. SKANUJ</button>
 
-    <button id="scanBtn" class="btn btn-scan">SKANUJ NUMER</button>
-
-    <div class="slider-group">
-        <label>CZYTELNOŚĆ (Threshold):</label>
-        <input type="range" id="threshold" min="30" max="220" value="130">
+    <div class="edit-zone">
+        <label style="color:#fff">WYNIK SKANU (Możesz tu poprawić):</label>
+        <input type="text" id="manual-edit" placeholder="Czekam na skan...">
+        <button id="saveBtn" class="btn btn-save">2. ZATWIERDŹ I ZAPISZ</button>
     </div>
 
     <div class="slider-group">
-        <label>POWIĘKSZENIE (Zoom):</label>
-        <input type="range" id="zoom" min="1" max="4" step="0.1" value="1.5">
+        <label>CZYTELNOŚĆ (Ustaw by znaki nie zlewały się z linią):</label>
+        <input type="range" id="threshold" min="30" max="220" value="115">
     </div>
 
-    <button id="downloadBtn" class="btn btn-csv" style="display:none;">POBIERZ CSV</button>
+    <div class="slider-group">
+        <label>ZOOM:</label>
+        <input type="range" id="zoom" min="1" max="4" step="0.1" value="2.2">
+    </div>
+
+    <button id="downloadBtn" class="btn btn-csv" style="display:none;">POBIERZ PLIK CSV DO EXCELA</button>
 
     <table>
-        <thead><tr><th>Zeskanowane numery</th></tr></thead>
         <tbody id="results-body"></tbody>
     </table>
 </div>
@@ -78,110 +78,71 @@
     const canvas = document.getElementById('main-view');
     const ctx = canvas.getContext('2d', {willReadFrequently: true});
     const status = document.getElementById('status');
-    const threshSlider = document.getElementById('threshold');
-    const zoomSlider = document.getElementById('zoom');
-    const resultsBody = document.getElementById('results-body');
-    const downloadBtn = document.getElementById('downloadBtn');
-
-    let isLive = false;
-
-    async function init() {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: "environment", width: { ideal: 1280 } } 
-            });
-            video.srcObject = stream;
-            isLive = true;
-            requestAnimationFrame(renderFilter);
-        } catch (e) { status.innerText = "Błąd kamery: " + e.message; }
-    }
-
-    function renderFilter() {
-        if (!isLive) return;
-        const w = video.videoWidth;
-        const h = video.videoHeight;
-        if (w > 0) {
-            canvas.width = canvas.clientWidth;
-            canvas.height = canvas.clientHeight;
-            const z = parseFloat(zoomSlider.value);
-            const sw = w / z;
-            const sh = h / z;
-            const sx = (w - sw) / 2;
-            const sy = (h - sh) / 2;
-            ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
-            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const d = imgData.data;
-            const threshold = parseInt(threshSlider.value);
-            for (let i = 0; i < d.length; i += 4) {
-                const b = (d[i] + d[i+1] + d[i+2]) / 3;
-                const v = b < threshold ? 0 : 255;
-                d[i] = d[i+1] = d[i+2] = v;
-            }
-            ctx.putImageData(imgData, 0, 0);
-        }
-        requestAnimationFrame(renderFilter);
-    }
-
+    const manualEdit = document.getElementById('manual-edit');
+    // KROK 1: SKANOWANIE
     document.getElementById('scanBtn').onclick = async () => {
-        status.innerText = "⏳ ANALIZUJĘ...";
+        status.innerText = "⏳ ANALIZA...";
         const ocrCanvas = document.createElement('canvas');
-        ocrCanvas.width = canvas.width * 0.85;
-        ocrCanvas.height = 80; // Trochę wyższy wycinek dla pisma ręcznego
+        ocrCanvas.width = canvas.width;
+        ocrCanvas.height = 100;
         const ocrCtx = ocrCanvas.getContext('2d');
-        ocrCtx.drawImage(canvas, canvas.width * 0.075, canvas.height * 0.5 - 40, ocrCanvas.width, 80, 0, 0, ocrCanvas.width, 80);
+        ocrCtx.fillStyle = "white";
+        ocrCtx.fillRect(0,0,ocrCanvas.width, 100);
+        ocrCtx.drawImage(canvas, 0, canvas.height * 0.5 - 20, canvas.width, 40, 0, 30, canvas.width, 40);
 
         try {
             const worker = await Tesseract.createWorker('eng', 1, {
                 workerPath: './worker.min.js', corePath: './tesseract-core.wasm.js', langPath: './', gzip: true
             });
-            // PSM 7: Treat the image as a single text line. (Najlepsze dla numerów)
             await worker.setParameters({ 
                 tessedit_char_whitelist: '0123456789EKOUMW/|lI',
                 tessedit_pageseg_mode: '7' 
             });
-            
             const { data: { text } } = await worker.recognize(ocrCanvas);
-            const clean = text.replace(/\s/g, '').toUpperCase();
-            // Elastyczne szukanie (akceptuje błędy w EKO/UMW)
-            const match = clean.match(/(\d{4,8}).{0,3}EK.{0,2}UMW.{0,2}2025/);
+            const clean = text.replace(/[^0-9A-Z]/g, '');
+            const match = clean.match(/(\d{4,8})/); // Szukaj tylko ciągu cyfr
 
             if (match) {
-                const res = match[1] + "/EKO/UMW/2025";
-                saveResult(res);
-                status.innerHTML = "✅ ZAPISANO!";
+                manualEdit.value = match[1] + "/EKO/UMW/2025";
+                status.innerText = "Sprawdź poprawność i zatwierdź";
             } else {
-                status.innerHTML = "❓ NIE ROZPOZNANO (Widzę: " + clean.substring(0,12) + ")";
+                status.innerText = "Słaby odczyt. Popraw ręcznie ->";
+                manualEdit.value = clean; 
             }
             await worker.terminate();
         } catch (e) { status.innerText = "Błąd: " + e.message; }
     };
 
-    function saveResult(nr) {
-        let list = JSON.parse(localStorage.getItem('faktury_v8') || '[]');
-        if(!list.includes(nr)) {
-            list.push(nr);
-            localStorage.setItem('faktury_v8', JSON.stringify(list));
-        }
-        renderTable();
+    // KROK 2: ZAPISYWANIE
+    document.getElementById('saveBtn').onclick = () => {
+        const val = manualEdit.value.trim();
+        if(val.length < 5) { alert("Numer jest za krótki!"); return; }
+        
+        let list = JSON.parse(localStorage.getItem('faktury_safe') || '[]');
+        list.push(val);
+        localStorage.setItem('faktury_safe', JSON.stringify(list));
+        
+        manualEdit.value = "";
+        status.innerText = "✅ Zapisano! Skanuj następny.";
+        renderList();
+    };
+
+    function renderList() {
+        const list = JSON.parse(localStorage.getItem('faktury_safe') || '[]');
+        document.getElementById('results-body').innerHTML = list.slice().reverse().map(item => `<tr><td>${item}</td></tr>`).join('');
+        if(list.length > 0) document.getElementById('downloadBtn').style.display = 'block';
     }
 
-    function renderTable() {
-        const list = JSON.parse(localStorage.getItem('faktury_v8') || '[]');
-        resultsBody.innerHTML = list.slice().reverse().map(item => `<tr><td>${item}</td></tr>`).join('');
-        if(list.length > 0) downloadBtn.style.display = 'block';
-    }
-
-    downloadBtn.onclick = () => {
-        const list = JSON.parse(localStorage.getItem('faktury_v8') || '[]');
-        const csv = "\uFEFFNumer Faktury\n" + list.join("\n");
+    document.getElementById('downloadBtn').onclick = () => {
+        const list = JSON.parse(localStorage.getItem('faktury_safe') || '[]');
+        const csv = "\uFEFF" + list.join("\n");
         const a = document.createElement('a');
-        a.href = URL.createObjectURL(new Blob([csv], {type: 'text/csv;charset=utf-8'}));
-        a.download = 'faktury.csv';
+        a.href = URL.createObjectURL(new Blob([csv], {type: 'text/csv'}));
+        a.download = 'faktury_do_excela.csv';
         a.click();
     };
 
-    init();
-    renderTable();
+    init(); renderList();
 </script>
 </body>
 </html>
