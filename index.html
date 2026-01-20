@@ -3,81 +3,62 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Skaner V11 - Poprawiony Start</title>
+    <title>Skaner V15 - Niebieski Tusz</title>
     <style>
         * { box-sizing: border-box; }
         body { font-family: sans-serif; background: #000; color: #fff; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-        
-        /* Ekran powitalny / Kamera */
-        .preview-container { position: relative; width: 100%; height: 40vh; background: #111; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+        #start-overlay { position: absolute; inset: 0; background: #000; z-index: 100; display: flex; align-items: center; justify-content: center; }
+        .btn-start { background: #007bff; color: #fff; padding: 20px; border-radius: 50px; border: none; font-weight: bold; }
+        .preview-container { position: relative; width: 100%; height: 30vh; background: #111; flex-shrink: 0; }
         #main-view { width: 100%; height: 100%; object-fit: contain; }
         video { display: none; }
-        
-        .reticle { 
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: 90%; height: 45px; border: 2px solid #00ff00; 
-            box-shadow: 0 0 0 1000px rgba(0,0,0,0.5); pointer-events: none; z-index: 10; display: none;
-        }
-
-        .bottom-panel { flex-grow: 1; overflow-y: auto; background: #1a1a1a; padding: 15px; border-top: 2px solid #444; }
-        
-        .btn { width: 100%; padding: 15px; border: none; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; margin-bottom: 10px; }
-        .btn-start { background: #007bff; color: white; padding: 20px; font-size: 18px; }
-        .btn-scan { background: #28a745; color: white; display: none; }
-        .btn-save { background: #ffc107; color: #000; display: none; }
-        .btn-csv { background: #6c757d; color: white; display: none; }
-
-        .edit-zone { background: #333; padding: 10px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #555; display: none; }
-        input[type=text] { width: 100%; padding: 12px; font-size: 18px; text-align: center; border-radius: 5px; border: none; margin-bottom: 8px; font-weight: bold; background: #fff; color: #000; }
-        
-        .controls-ui { display: none; }
-        .slider-group { margin-bottom: 12px; }
-        label { display: block; font-size: 11px; color: #ffeb3b; margin-bottom: 4px; }
-        input[type=range] { width: 100%; height: 35px; }
-
-        #status { font-size: 13px; color: #0f0; margin-bottom: 8px; min-height: 18px; text-align: center; }
-        table { width: 100%; background: #fff; color: #000; border-collapse: collapse; margin-top: 10px; }
-        td { padding: 10px; border-bottom: 1px solid #ccc; font-size: 13px; font-family: monospace; }
+        .reticle { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 85%; height: 35px; border: 2px solid #00d2ff; box-shadow: 0 0 0 1000px rgba(0,0,0,0.5); pointer-events: none; z-index: 10; }
+        .bottom-panel { flex-grow: 1; overflow-y: auto; background: #1a1a1a; padding: 8px; border-top: 1px solid #444; }
+        .btn { width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: bold; margin-bottom: 6px; font-size: 14px; }
+        .btn-scan { background: #00d2ff; color: #000; }
+        .btn-save { background: #ffc107; color: #000; }
+        .edit-zone { background: #2a2a2a; padding: 8px; border-radius: 8px; margin-bottom: 8px; border: 1px solid #444; }
+        input[type=text] { width: 100%; padding: 10px; font-size: 16px; text-align: center; border-radius: 4px; border: none; font-weight: bold; }
+        .slider-group { margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+        .slider-group label { font-size: 10px; color: #00d2ff; min-width: 70px; }
+        input[type=range] { flex-grow: 1; height: 25px; }
+        #status { font-size: 11px; color: #00d2ff; text-align: center; margin-bottom: 4px; }
+        table { width: 100%; background: #fff; color: #000; border-collapse: collapse; margin-top: 8px; font-size: 12px; }
+        td { padding: 6px; border-bottom: 1px solid #ccc; font-family: monospace; }
     </style>
     <script src="tesseract.min.js"></script>
 </head>
 <body>
 
+<div id="start-overlay">
+    <button id="startBtn" class="btn-start">URUCHOM SKANER (NIEBIESKI TUSZ)</button>
+</div>
+
 <div class="preview-container">
-    <button id="startBtn" class="btn btn-start">URUCHOM KAMERĘ</button>
     <canvas id="main-view"></canvas>
-    <div id="reticle" class="reticle"></div>
+    <div class="reticle"></div>
 </div>
 
 <video id="video" autoplay playsinline></video>
 
 <div class="bottom-panel">
-    <div id="status">Wciśnij niebieski przycisk u góry</div>
-    
-    <button id="scanBtn" class="btn btn-scan">1. SKANUJ NUMER</button>
-
-    <div id="editZone" class="edit-zone">
-        <label>WYNIK (Popraw jeśli trzeba):</label>
-        <input type="text" id="manual-edit">
-        <button id="saveBtn" class="btn btn-save" style="display:block;">2. ZATWIERDŹ I ZAPISZ</button>
+    <div id="status">Nakieruj na niebieski numer</div>
+    <button id="scanBtn" class="btn btn-scan">SKANUJ NIEBIESKI WPIS</button>
+    <div class="edit-zone">
+        <input type="text" id="manual-edit" placeholder="...">
+        <button id="saveBtn" class="btn btn-save">ZATWIERDŹ I ZAPISZ</button>
     </div>
-
-    <div id="controlsUI" class="controls-ui">
-        <div class="slider-group">
-            <label>CZYTELNOŚĆ (Pisma ręczne):</label>
-            <input type="range" id="threshold" min="30" max="220" value="115">
-        </div>
-        <div class="slider-group">
-            <label>POWIĘKSZENIE (Zoom):</label>
-            <input type="range" id="zoom" min="1" max="5" step="0.1" value="2.0">
-        </div>
+    <div class="slider-group">
+        <label>CZUŁOŚĆ:</label>
+        <input type="range" id="threshold" min="10" max="150" value="40">
     </div>
-
-    <button id="downloadBtn" class="btn btn-csv">POBIERZ PLIK CSV</button>
-
-    <table id="res-table">
-        <tbody id="results-body"></tbody>
-    </table>
+    <div class="slider-group">
+        <label>ZOOM:</label>
+        <input type="range" id="zoom" min="1" max="5" step="0.1" value="2.0">
+    </div>
+    <button id="downloadBtn" class="btn" style="background:#555; color:white; display:none;">POBIERZ CSV</button>
+    <button id="clearBtn" class="btn" style="background:#400; color:white; font-size:10px;">WYCZYŚĆ WSZYSTKO</button>
+    <table id="res-table"><tbody id="results-body"></tbody></table>
 </div>
 
 <script>
@@ -91,7 +72,6 @@
 
     let isLive = false;
 
-    // START KAMERY
     document.getElementById('startBtn').onclick = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -99,17 +79,9 @@
             });
             video.srcObject = stream;
             isLive = true;
-            
-            // Pokaż UI
-            document.getElementById('startBtn').style.display = 'none';
-            document.getElementById('reticle').style.display = 'block';
-            document.getElementById('scanBtn').style.display = 'block';
-            document.getElementById('controlsUI').style.display = 'block';
-            document.getElementById('editZone').style.display = 'block';
-            status.innerText = "Ustaw numer w zielonej ramce";
-            
+            document.getElementById('start-overlay').style.display = 'none';
             requestAnimationFrame(render);
-        } catch (e) { status.innerText = "Błąd: " + e.message; }
+        } catch (e) { alert("Błąd: " + e.message); }
     };
 
     function render() {
@@ -127,26 +99,35 @@
             
             const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             const d = imgData.data;
-            const threshold = parseInt(threshSlider.value);
+            const sensitivity = parseInt(threshSlider.value);
+
             for (let i = 0; i < d.length; i += 4) {
-                const b = (d[i] + d[i+1] + d[i+2]) / 3;
-                const v = b < threshold ? 0 : 255;
-                d[i] = d[i+1] = d[i+2] = v;
+                let r = d[i], g = d[i+1], b = d[i+2];
+                
+                // LOGIKA FILTRA NIEBIESKIEGO:
+                // Sprawdzamy czy składowa niebieska (B) jest znacznie silniejsza 
+                // niż czerwona (R) i zielona (G).
+                // Jeśli tak -> to niebieski długopis (robimy czarny).
+                // Jeśli nie -> to czarny druk lub szare tło (robimy białe).
+                let isBlue = (b > r + sensitivity) && (b > g + (sensitivity/2));
+
+                if (isBlue) {
+                    d[i] = d[i+1] = d[i+2] = 0; // Czarny tekst dla robota
+                } else {
+                    d[i] = d[i+1] = d[i+2] = 255; // Białe tło
+                }
             }
             ctx.putImageData(imgData, 0, 0);
         }
         requestAnimationFrame(render);
     }
 
-    // SKANOWANIE
     document.getElementById('scanBtn').onclick = async () => {
-        status.innerText = "⏳ CZYTAM...";
+        status.innerText = "⏳ ANALIZA NIEBIESKIEGO TUSZU...";
         const ocrCanvas = document.createElement('canvas');
-        ocrCanvas.width = canvas.width;
-        ocrCanvas.height = 100;
+        ocrCanvas.width = canvas.width; ocrCanvas.height = 100;
         const ocrCtx = ocrCanvas.getContext('2d');
-        ocrCtx.fillStyle = "white";
-        ocrCtx.fillRect(0,0,ocrCanvas.width, 100);
+        ocrCtx.fillStyle = "white"; ocrCtx.fillRect(0,0,ocrCanvas.width, 100);
         ocrCtx.drawImage(canvas, 0, canvas.height * 0.5 - 20, canvas.width, 40, 0, 30, canvas.width, 40);
 
         try {
@@ -160,37 +141,39 @@
             const { data: { text } } = await worker.recognize(ocrCanvas);
             const clean = text.replace(/[^0-9A-Z]/g, '');
             const match = clean.match(/(\d{4,8})/);
-
             manualEdit.value = match ? match[1] + "/EKO/UMW/2025" : clean;
-            status.innerText = "Gotowe. Sprawdź i zapisz.";
+            status.innerText = "Sprawdź niebieski odczyt.";
             await worker.terminate();
         } catch (e) { status.innerText = "Błąd: " + e.message; }
     };
 
-    // ZAPIS
     document.getElementById('saveBtn').onclick = () => {
         const val = manualEdit.value.trim();
         if(val.length < 3) return;
-        let list = JSON.parse(localStorage.getItem('faktury_final') || '[]');
+        let list = JSON.parse(localStorage.getItem('faktury_v15') || '[]');
         list.push(val);
-        localStorage.setItem('faktury_final', JSON.stringify(list));
+        localStorage.setItem('faktury_v15', JSON.stringify(list));
         manualEdit.value = "";
         status.innerText = "✅ Zapisano!";
         renderList();
     };
 
+    document.getElementById('clearBtn').onclick = () => {
+        if(confirm("Wyczyścić?")) { localStorage.setItem('faktury_v15', '[]'); renderList(); }
+    };
+
     function renderList() {
-        const list = JSON.parse(localStorage.getItem('faktury_final') || '[]');
+        const list = JSON.parse(localStorage.getItem('faktury_v15') || '[]');
         document.getElementById('results-body').innerHTML = list.slice().reverse().map(item => `<tr><td>${item}</td></tr>`).join('');
         document.getElementById('downloadBtn').style.display = list.length > 0 ? 'block' : 'none';
     }
 
     document.getElementById('downloadBtn').onclick = () => {
-        const list = JSON.parse(localStorage.getItem('faktury_final') || '[]');
+        const list = JSON.parse(localStorage.getItem('faktury_v15') || '[]');
         const csv = "\uFEFF" + list.join("\n");
         const a = document.createElement('a');
         a.href = URL.createObjectURL(new Blob([csv], {type: 'text/csv'}));
-        a.download = 'faktury.csv';
+        a.download = 'niebieski_skan.csv';
         a.click();
     };
 
