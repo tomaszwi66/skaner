@@ -1,144 +1,116 @@
 <!DOCTYPE html>
 <html lang="pl">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>Skaner V22 – Natural</title>
-
-<style>
-* { box-sizing:border-box; margin:0; padding:0 }
-body {
-    background:#000; color:#fff; font-family:sans-serif;
-    height:100vh; display:flex; flex-direction:column;
-}
-.preview {
-    position:relative; height:40vh; background:#111;
-}
-canvas { width:100%; height:100% }
-.reticle {
-    position:absolute; left:50%; top:50%;
-    transform:translate(-50%,-50%);
-    width:85%; height:80px;
-    border:3px solid #ff3b30;
-    pointer-events:none;
-}
-.panel {
-    flex:1; padding:14px; background:#1a1a1a; overflow:auto;
-}
-button {
-    width:100%; padding:16px; font-size:18px;
-    border:none; border-radius:12px; font-weight:bold;
-    margin-bottom:10px;
-}
-.scan { background:#ff3b30; color:#fff }
-.save { background:#4cd964; color:#000 }
-input {
-    width:100%; padding:14px; font-size:22px;
-    text-align:center; margin-bottom:10px;
-}
-label { font-size:12px; color:#aaa }
-</style>
-
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Skaner V22 - Natural</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: sans-serif; background: #000; color: #fff; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        #start-overlay { position: absolute; inset: 0; background: #000; z-index: 100; display: flex; align-items: center; justify-content: center; }
+        .btn-start { background: #007bff; color: #fff; padding: 20px; border-radius: 50px; border: none; font-weight: bold; }
+        .preview-container { position: relative; width: 100%; height: 40vh; background: #111; }
+        #main-view { width: 100%; height: 100%; object-fit: contain; }
+        video { display: none; }
+        .reticle { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 85%; height: 70px; border: 3px solid #ff3b30; z-index: 10; pointer-events: none; }
+        .bottom-panel { flex-grow: 1; padding: 15px; background: #1a1a1a; overflow-y: auto; }
+        .btn { width: 100%; padding: 18px; border: none; border-radius: 12px; font-weight: bold; margin-bottom: 12px; font-size: 18px; }
+        .btn-scan { background: #ff3b30; color: #fff; }
+        .btn-save { background: #4cd964; color: #000; }
+        input[type=text] { width: 100%; padding: 15px; font-size: 24px; text-align: center; margin-bottom: 10px; border-radius: 8px; border: 2px solid #ff3b30; font-weight: bold; }
+        .slider-group { margin-bottom: 15px; display: flex; align-items: center; gap: 10px; }
+        .slider-group label { font-size: 12px; color: #aaa; min-width: 70px; }
+        input[type=range] { flex-grow: 1; height: 30px; }
+    </style>
+    <script src="tesseract.min.js"></script>
 </head>
-
 <body>
 
-<div class="preview">
-    <canvas id="view"></canvas>
+<div id="start-overlay">
+    <button id="startBtn" class="btn-start">URUCHOM APARAT</button>
+</div>
+
+<div class="preview-container">
+    <canvas id="main-view"></canvas>
     <div class="reticle"></div>
 </div>
 
-<video id="video" autoplay playsinline style="display:none"></video>
+<video id="video" autoplay playsinline></video>
 
-<div class="panel">
-    <button class="scan" id="scan">FOTO I ODCZYT</button>
-    <input id="edit" placeholder="...">
-    <button class="save" id="save">ZAPISZ</button>
-
-    <label>ZOOM</label>
-    <input type="range" id="zoom" min="1" max="5" step="0.1" value="2">
-
-    <div id="status" style="margin-top:8px;color:#ff3b30;font-size:12px"></div>
-    <div id="out" style="margin-top:10px;background:#fff;color:#000;border-radius:8px"></div>
+<div class="bottom-panel">
+    <button id="scanBtn" class="btn btn-scan">FOTO I ODCZYT</button>
+    <input type="text" id="manual-edit" placeholder="...">
+    <button id="saveBtn" class="btn btn-save">ZAPISZ NUMER</button>
+    
+    <div class="slider-group">
+        <label>ZOOM:</label>
+        <input type="range" id="zoom" min="1" max="5" step="0.1" value="2.0">
+    </div>
+    
+    <div id="status" style="text-align:center; font-size:12px; color:#ff3b30;">Trzymaj telefon stabilnie</div>
+    <div id="results" style="margin-top:10px; background:#fff; color:#000; border-radius:8px;"></div>
 </div>
 
 <script>
-const video = document.getElementById('video');
-const canvas = document.getElementById('view');
-const ctx = canvas.getContext('2d');
-const edit = document.getElementById('edit');
-const status = document.getElementById('status');
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('main-view');
+    const ctx = canvas.getContext('2d');
+    const manualEdit = document.getElementById('manual-edit');
 
-async function startCamera() {
-    const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode:"environment", width:{ideal:1920} }
-    });
-    video.srcObject = stream;
-    await video.play();
+    document.getElementById('startBtn').onclick = async () => {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: 1920 } });
+        video.srcObject = stream;
+        document.getElementById('start-overlay').style.display = 'none';
+        requestAnimationFrame(render);
+    };
 
-    canvas.width = canvas.clientWidth;
-    canvas.height = canvas.clientHeight;
+    function render() {
+        canvas.width = canvas.clientWidth;
+        canvas.height = canvas.clientHeight;
+        const z = parseFloat(document.getElementById('zoom').value);
+        const sw = video.videoWidth / z;
+        const sh = video.videoHeight / z;
+        const sx = (video.videoWidth - sw) / 2;
+        const sy = (video.videoHeight - sh) / 2;
+        ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+        requestAnimationFrame(render);
+    }
 
-    requestAnimationFrame(draw);
-}
+    document.getElementById('scanBtn').onclick = async () => {
+        document.getElementById('status').innerText = "⏳ ANALIZA ZDJĘCIA...";
+        
+        // Przygotowujemy czyste zdjęcie fragmentu (bez filtrów niszczących obraz)
+        const ocrCanvas = document.createElement('canvas');
+        ocrCanvas.width = 800;
+        ocrCanvas.height = 160;
+        const ocrCtx = ocrCanvas.getContext('2d');
+        
+        // Pobieramy kolorowy obraz z ramki
+        ocrCtx.drawImage(canvas, canvas.width * 0.05, canvas.height * 0.5 - 40, canvas.width * 0.9, 80, 0, 0, 800, 160);
 
-function draw() {
-    if (video.videoWidth === 0) return requestAnimationFrame(draw);
+        try {
+            const worker = await Tesseract.createWorker('eng');
+            // Zmieniamy tryb na 6 lub 11 - lepsze dla pisma odręcznego
+            await worker.setParameters({
+                tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ/',
+                tessedit_pageseg_mode: '6' 
+            });
+            const { data: { text } } = await worker.recognize(ocrCanvas);
+            manualEdit.value = text.replace(/[^0-9A-Z/]/g, '').trim();
+            document.getElementById('status').innerText = "Gotowe!";
+            await worker.terminate();
+        } catch (e) { alert(e); }
+    };
 
-    const z = +zoom.value;
-    const sw = video.videoWidth / z;
-    const sh = video.videoHeight / z;
-    const sx = (video.videoWidth - sw) / 2;
-    const sy = (video.videoHeight - sh) / 2;
-
-    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
-    requestAnimationFrame(draw);
-}
-
-startCamera();
-
-document.getElementById('scan').onclick = async () => {
-    status.textContent = "Analiza…";
-
-    const ocr = document.createElement('canvas');
-    ocr.width = 900;
-    ocr.height = 200;
-    const octx = ocr.getContext('2d');
-
-    const rx = canvas.width * 0.05;
-    const ry = canvas.height * 0.5 - 40;
-    const rw = canvas.width * 0.9;
-    const rh = 80;
-
-    octx.drawImage(canvas, rx, ry, rw, rh, 0, 0, ocr.width, ocr.height);
-
-    const worker = await Tesseract.createWorker();
-    await worker.load();
-    await worker.loadLanguage('eng');
-    await worker.initialize('eng');
-
-    await worker.setParameters({
-        tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ/',
-        tessedit_pageseg_mode: 6
-    });
-
-    const { data:{ text } } = await worker.recognize(ocr);
-    await worker.terminate();
-
-    edit.value = text.replace(/[^0-9A-Z/]/g,'').trim();
-    status.textContent = "Gotowe";
-};
-
-document.getElementById('save').onclick = () => {
-    if (!edit.value) return;
-    const d = document.createElement('div');
-    d.style.padding = "10px";
-    d.style.borderBottom = "1px solid #ccc";
-    d.textContent = edit.value;
-    out.prepend(d);
-    edit.value = "";
-};
+    document.getElementById('saveBtn').onclick = () => {
+        if(!manualEdit.value) return;
+        const div = document.createElement('div');
+        div.style.padding = "10px";
+        div.style.borderBottom = "1px solid #ccc";
+        div.innerText = manualEdit.value;
+        document.getElementById('results').prepend(div);
+        manualEdit.value = "";
+    };
 </script>
 </body>
 </html>
