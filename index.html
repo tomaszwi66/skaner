@@ -2,158 +2,161 @@
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Skaner Faktur - Wersja Długopis</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Skaner V7 - Pełny Podgląd Filtra</title>
     <style>
-        body { font-family: sans-serif; background: #121212; color: #e0e0e0; margin: 0; padding: 10px; text-align: center; }
-        .container { max-width: 500px; margin: 0 auto; }
-        video { width: 100%; border-radius: 12px; border: 2px solid #333; }
-        .btn { width: 100%; padding: 16px; border: none; border-radius: 10px; font-size: 18px; font-weight: bold; cursor: pointer; margin: 10px 0; }
-        .btn-main { background: #007bff; color: white; }
-        .btn-snap { background: #28a745; color: white; display: none; }
-        #debug-zone { background: #000; padding: 10px; border-radius: 10px; border: 1px solid #444; margin-top: 10px; }
-        canvas { width: 100%; border: 1px solid #666; image-rendering: pixelated; }
-        #status { font-weight: bold; margin: 10px 0; color: #ffc107; }
-        #raw-text { font-family: monospace; font-size: 12px; color: #00ff00; background: #222; padding: 10px; border-radius: 5px; min-height: 20px; word-break: break-all; }
-        table { width: 100%; background: white; color: black; margin-top: 20px; border-collapse: collapse; border-radius: 8px; overflow: hidden; }
-        td { padding: 12px; border-bottom: 1px solid #eee; text-align: left; }
+        body { font-family: sans-serif; background: #000; color: #fff; margin: 0; padding: 0; overflow: hidden; text-align: center; }
+        
+        /* Teraz to jest Twój główny ekran - podgląd z nałożonym filtrem */
+        #main-view { width: 100vw; height: 65vh; background: #111; display: block; object-fit: contain; }
+
+        /* Ukrywamy surową kamerę, bo chcemy widzieć tylko przetworzony obraz */
+        video { display: none; }
+
+        /* Celownik */
+        .reticle { 
+            position: absolute; top: 32.5vh; left: 50%; transform: translate(-50%, -50%);
+            width: 85%; height: 60px; border: 2px solid #00ff00; 
+            box-shadow: 0 0 0 1000px rgba(0,0,0,0.3);
+            pointer-events: none; z-index: 10;
+        }
+        .reticle::after { content: "NAWIEŹ NUMER TUTAJ"; color: #00ff00; font-size: 12px; position: absolute; top: -20px; left: 5px; font-weight: bold; }
+
+        .controls { padding: 10px; background: #1a1a1a; height: 35vh; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-around; }
+        
+        .slider-group { margin-bottom: 5px; }
+        input[type=range] { width: 90%; height: 35px; }
+        label { display: block; font-size: 13px; color: #ffeb3b; margin-bottom: 2px; }
+
+        .btn-scan { width: 90%; padding: 18px; border: none; border-radius: 12px; font-size: 20px; font-weight: bold; cursor: pointer; background: #28a745; color: white; align-self: center; }
+        
+        #status { font-size: 14px; color: #ffeb3b; min-height: 20px; margin-bottom: 5px; }
+        #results-list { background: #fff; color: #000; font-size: 14px; max-height: 60px; overflow-y: auto; text-align: left; padding: 5px; border-radius: 5px; width: 90%; margin: 0 auto; }
     </style>
     <script src="tesseract.min.js"></script>
 </head>
 <body>
 
-<div class="container">
-    <video id="video" autoplay playsinline></video>
-    
-    <button id="startBtn" class="btn btn-main">1. URUCHOM KAMERĘ</button>
-    <button id="captureBtn" class="btn btn-snap">2. SKANUJ NUMER</button>
+<canvas id="main-view"></canvas>
+<div class="reticle"></div>
 
-    <div id="status">Gotowy</div>
+<video id="video" autoplay playsinline></video>
 
-    <div id="debug-zone">
-        <p style="font-size:10px; margin:0 0 5px 0;">PODGLĄD (Musi być widać długopis!):</p>
-        <canvas id="outCanvas"></canvas>
-        <div id="raw-text">Tu pojawi się odczyt...</div>
+<div class="controls">
+    <div id="status">Uruchamianie...</div>
+
+    <div class="slider-group">
+        <label>1. CZYTELNOŚĆ (Dostosuj, by widzieć czarny długopis):</label>
+        <input type="range" id="threshold" min="30" max="220" value="130">
     </div>
 
-    <table id="list"><tbody></tbody></table>
-    <button id="downloadBtn" class="btn" style="background:#6c757d; color:white; display:none;">POBIERZ CSV</button>
+    <div class="slider-group">
+        <label>2. POWIĘKSZENIE (Zoom):</label>
+        <input type="range" id="zoom" min="1" max="4" step="0.1" value="1.5">
+    </div>
+
+    <button id="scanBtn" class="btn-scan">SKANUJ TEN NUMER</button>
+    
+    <div id="results-list">Oczekiwanie na skan...</div>
 </div>
 
 <script>
     const video = document.getElementById('video');
-    const outCanvas = document.getElementById('outCanvas');
+    const canvas = document.getElementById('main-view');
+    const ctx = canvas.getContext('2d', {willReadFrequently: true});
     const status = document.getElementById('status');
-    const rawTextEl = document.getElementById('raw-text');
-    const outCtx = outCanvas.getContext('2d', { willReadFrequently: true });
+    const threshSlider = document.getElementById('threshold');
+    const zoomSlider = document.getElementById('zoom');
+    const resultsList = document.getElementById('results-list');
 
-    // 1. START KAMERY
-    document.getElementById('startBtn').onclick = async () => {
+    let isLive = false;
+
+    // Start kamery
+    async function init() {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } } 
+                video: { facingMode: "environment", width: { ideal: 1280 } } 
             });
             video.srcObject = stream;
-            document.getElementById('startBtn').style.display = 'none';
-            document.getElementById('captureBtn').style.display = 'block';
-            status.innerText = "Ustaw numer w centrum i kliknij Skanuj";
+            isLive = true;
+            status.innerText = "Ustaw suwak, by tekst był czarny";
+            requestAnimationFrame(renderFilter);
+        } catch (e) { status.innerText = "Błąd kamery: " + e.message; }
+    }
+
+    // GŁÓWNA PĘTLA FILTRA - To co widzisz na całym ekranie
+    function renderFilter() {
+        if (!isLive) return;
+
+        const w = video.videoWidth;
+        const h = video.videoHeight;
+        
+        if (w > 0) {
+            // Rozmiar płótna dopasowujemy do ekranu
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight * 0.65;
+
+            const z = parseFloat(zoomSlider.value);
+            
+            // Obliczamy obszar wycięcia z kamery (Zoom)
+            const sw = w / z;
+            const sh = h / z;
+            const sx = (w - sw) / 2;
+            const sy = (h - sh) / 2;
+
+            // Rysujemy obraz z kamery na płótnie
+            ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+
+            // NAKŁADAMY FILTR JASNOŚCI NA CAŁY EKRAN
+            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const d = imgData.data;
+            const threshold = parseInt(threshSlider.value);
+
+            for (let i = 0; i < d.length; i += 4) {
+                const brightness = (d[i] + d[i+1] + d[i+2]) / 3;
+                const v = brightness < threshold ? 0 : 255;
+                d[i] = d[i+1] = d[i+2] = v;
+            }
+            ctx.putImageData(imgData, 0, 0);
+        }
+        requestAnimationFrame(renderFilter);
+    }
+
+    // SKANOWANIE TEGO CO W RAMCE
+    document.getElementById('scanBtn').onclick = async () => {
+        status.innerText = "⏳ ANALIZUJĘ...";
+        
+        // Tworzymy mały wycinek tylko z ramki do OCR
+        const ocrCanvas = document.createElement('canvas');
+        ocrCanvas.width = canvas.width * 0.85;
+        ocrCanvas.height = 60;
+        const ocrCtx = ocrCanvas.getContext('2d');
+        
+        // Pobieramy obraz dokładnie z miejsca gdzie jest zielona ramka
+        ocrCtx.drawImage(canvas, canvas.width * 0.075, canvas.height * 0.5 - 30, ocrCanvas.width, 60, 0, 0, ocrCanvas.width, 60);
+
+        try {
+            const worker = await Tesseract.createWorker('eng', 1, {
+                workerPath: './worker.min.js', corePath: './tesseract-core.wasm.js', langPath: './', gzip: true
+            });
+            await worker.setParameters({ tessedit_char_whitelist: '0123456789EKOUMW/|' });
+            
+            const { data: { text } } = await worker.recognize(ocrCanvas);
+            const clean = text.replace(/\s/g, '').toUpperCase();
+            const match = clean.match(/(\d{4,})[\/|]EK[0O][\/|]UMW[\/|]2025/);
+
+            if (match) {
+                const res = match[1] + "/EKO/UMW/2025";
+                status.innerHTML = "<b style='color:#28a745'>✅ ZNALEZIONO!</b>";
+                resultsList.innerHTML = `<div>${res}</div>` + resultsList.innerHTML;
+            } else {
+                status.innerHTML = "<b style='color:#ffc107'>❓ NIE DOPASOWANO (Widzę: " + clean.substring(0,10) + ")</b>";
+            }
+            await worker.terminate();
         } catch (e) { status.innerText = "Błąd: " + e.message; }
     };
 
-    // 2. PRZETWARZANIE (Zoptymalizowane pod długopis)
-    document.getElementById('captureBtn').onclick = async () => {
-        status.innerText = "Przetwarzanie...";
-        
-        // Wycinamy środek
-        const w = video.videoWidth;
-        const h = video.videoHeight;
-        const cropH = h * 0.25; // Pasek 25% wysokości
-        
-        outCanvas.width = w;
-        outCanvas.height = cropH;
-        
-        // Rysujemy wycinek
-        outCtx.drawImage(video, 0, h*0.37, w, cropH, 0, 0, w, cropH);
-
-        // FILTR: Zamiast czarno-białego, robimy inteligentny kontrast
-        const imgData = outCtx.getImageData(0, 0, w, cropH);
-        const d = imgData.data;
-        
-        for (let i = 0; i < d.length; i += 4) {
-            // Skala szarości
-            let v = 0.2126 * d[i] + 0.7152 * d[i+1] + 0.0722 * d[i+2];
-            
-            // MOCNY KONTRAST (Adaptive-like)
-            // Wyciągamy ciemne linie (długopis) i rozjaśniamy tło
-            if (v < 130) { v = v * 0.5; } // Przyciemnij to co już ciemne (długopis)
-            else { v = 255; } // Wybiel tło
-            
-            d[i] = d[i+1] = d[i+2] = v;
-        }
-        outCtx.putImageData(imgData, 0, 0);
-
-        runOCR();
-    };
-
-    // 3. OCR
-    async function runOCR() {
-        status.innerText = "Robot czyta...";
-        try {
-            const worker = await Tesseract.createWorker('eng', 1, {
-                workerPath: './worker.min.js',
-                corePath: './tesseract-core.wasm.js',
-                langPath: './',
-                gzip: true
-            });
-
-            await worker.setParameters({
-                tessedit_char_whitelist: '0123456789EKOUMW/|lI',
-            });
-
-            const { data: { text } } = await worker.recognize(outCanvas);
-            rawTextEl.innerText = "Odczytano: " + text;
-
-            // Sprzątanie tekstu pod wzorzec
-            const clean = text.replace(/\s/g, '').toUpperCase();
-            const match = clean.match(/(\d{4,})[\/|lI1]EK[0O][\/|lI1]UMW[\/|lI1]2025/);
-
-            if (match) {
-                const finalNr = match[1] + "/EKO/UMW/2025";
-                save(finalNr);
-                status.innerHTML = `<span style="color:#28a745">ZNALEZIONO: ${finalNr}</span>`;
-            } else {
-                status.innerText = "Nie znaleziono wzoru. Spróbuj zmienić kąt.";
-            }
-            await worker.terminate();
-        } catch (e) { status.innerText = "Błąd OCR: " + e.message; }
-    }
-
-    function save(nr) {
-        let list = JSON.parse(localStorage.getItem('faktury_final') || '[]');
-        if(!list.includes(nr)) {
-            list.push(nr);
-            localStorage.setItem('faktury_final', JSON.stringify(list));
-        }
-        render();
-    }
-
-    function render() {
-        const list = JSON.parse(localStorage.getItem('faktury_final') || '[]');
-        const tbody = document.querySelector('#list tbody');
-        tbody.innerHTML = list.map((item, idx) => `<tr><td>${item}</td></tr>`).join('');
-        if(list.length > 0) document.getElementById('downloadBtn').style.display = 'block';
-    }
-
-    document.getElementById('downloadBtn').onclick = () => {
-        const list = JSON.parse(localStorage.getItem('faktury_final') || '[]');
-        const csv = "Numer Faktury\n" + list.join("\n");
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(new Blob([csv], {type: 'text/csv'}));
-        a.download = 'faktury.csv';
-        a.click();
-    };
-
-    render();
+    init();
 </script>
 </body>
 </html>
